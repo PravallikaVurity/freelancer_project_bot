@@ -1,13 +1,35 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { FaArrowLeft, FaCheck, FaTimes } from "react-icons/fa";
+import { FaArrowLeft, FaCheck, FaTimes, FaMicrophone, FaPlay, FaPause, FaDownload } from "react-icons/fa";
 import DashboardPage from "../../components/DashboardPage";
 import StarRating from "../../components/StarRating";
 import Badge from "../../components/Badge";
 import LoadingSpinner from "../../components/LoadingSpinner";
+import { StatusDisplay } from "../../components/StatusBadge";
 import { getProposals } from "../../services/projectApi";
 import { updateProposalStatus } from "../../services/bidApi";
 import toast from "react-hot-toast";
+
+const VoicePlayer = ({ url }) => {
+  const [playing, setPlaying] = useState(false);
+  const audioRef = useRef(null);
+  return (
+    <div className="flex items-center gap-3 mt-3 px-3 py-2 glass-light rounded-xl border border-[#9b6dff]/20 w-fit">
+      <FaMicrophone className="text-[#9b6dff] text-xs shrink-0" />
+      <span className="text-xs text-[#9b6dff] font-medium">Voice Proposal Available 🎤</span>
+      <audio ref={audioRef} src={url} onEnded={() => setPlaying(false)} className="sr-only" />
+      <button type="button"
+        onClick={() => { if (playing) { audioRef.current.pause(); setPlaying(false); } else { audioRef.current.play(); setPlaying(true); } }}
+        className="h-7 w-7 rounded-full bg-[#9b6dff]/20 border border-[#9b6dff]/40 flex items-center justify-center text-[#9b6dff] hover:bg-[#9b6dff]/30 transition">
+        {playing ? <FaPause className="text-xs" /> : <FaPlay className="text-xs ml-0.5" />}
+      </button>
+      <a href={url} download target="_blank" rel="noreferrer"
+        className="h-7 w-7 rounded-full bg-[#2ee6a6]/10 border border-[#2ee6a6]/30 flex items-center justify-center text-[#2ee6a6] hover:bg-[#2ee6a6]/20 transition">
+        <FaDownload className="text-xs" />
+      </a>
+    </div>
+  );
+};
 
 const ViewProposals = () => {
   const { id } = useParams();
@@ -49,6 +71,7 @@ const ViewProposals = () => {
                   <div>
                     <p className="font-display font-bold">{p.freelancer?.name}</p>
                     <StarRating rating={p.freelancer?.rating || 0} />
+                    <StatusDisplay status={p.freelancer?.currentStatus} className="mt-0.5" />
                   </div>
                 </div>
                 <Badge status={p.status} />
@@ -70,6 +93,8 @@ const ViewProposals = () => {
               </div>
 
               <p className="text-[#8b8ba3] text-sm mb-4 line-clamp-3">{p.coverLetter}</p>
+
+              {p.voiceFile?.url && <VoicePlayer url={p.voiceFile.url} />}
 
               {p.status === "pending" && (
                 <div className="flex gap-3">

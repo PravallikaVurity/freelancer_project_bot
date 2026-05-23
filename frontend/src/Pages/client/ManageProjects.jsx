@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { FaPlus, FaTrash, FaEye } from "react-icons/fa";
+import { FaPlus, FaTrash, FaEye, FaFire } from "react-icons/fa";
 import DashboardPage from "../../components/DashboardPage";
 import Badge from "../../components/Badge";
 import { CardSkeleton } from "../../components/Skeleton";
@@ -60,7 +60,12 @@ const ManageProjects = () => {
               <p className="text-sm text-[#8b8ba3]">{p.proposals?.length || 0} proposals</p>
               <div className="flex items-center gap-2">
                 <Badge status={p.status} />
-                <Link to={`/client/projects/${p._id}/proposals`} className="p-1.5 glass-light rounded-lg text-[#8b8ba3] hover:text-[#2ee6a6] transition"><FaEye /></Link>
+                <Link to={`/client/projects/${p._id}/proposals`} className="p-1.5 glass-light rounded-lg text-[#8b8ba3] hover:text-[#2ee6a6] transition" title="View Proposals"><FaEye /></Link>
+                {p.proposals?.length > 0 && (
+                  <Link to={`/client/projects/${p._id}/battle`} className="p-1.5 glass-light rounded-lg text-[#8b8ba3] hover:text-orange-400 transition" title="Battle Mode">
+                    <FaFire />
+                  </Link>
+                )}
                 <button type="button" onClick={() => handleDelete(p._id)} className="p-1.5 glass-light rounded-lg text-[#8b8ba3] hover:text-[#ff6b6b] transition"><FaTrash /></button>
               </div>
             </div>

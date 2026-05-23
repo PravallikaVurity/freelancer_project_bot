@@ -27,7 +27,7 @@ exports.register = async (req, res, next) => {
     const token = signToken(user._id);
     res.status(201).json({
       success: true, token,
-      user: { _id: user._id, name: user.name, email: user.email, role: user.role, avatar: user.avatar },
+      user: { _id: user._id, name: user.name, email: user.email, role: user.role, avatar: user.avatar, currentStatus: user.currentStatus, statusUpdatedAt: user.statusUpdatedAt },
     });
   } catch (err) { next(err); }
 };
@@ -56,7 +56,7 @@ exports.login = async (req, res, next) => {
     const token = signToken(user._id);
     res.json({
       success: true, token,
-      user: { _id: user._id, name: user.name, email: user.email, role: user.role, avatar: user.avatar },
+      user: { _id: user._id, name: user.name, email: user.email, role: user.role, avatar: user.avatar, currentStatus: user.currentStatus, statusUpdatedAt: user.statusUpdatedAt },
     });
   } catch (err) { next(err); }
 };
@@ -140,6 +140,29 @@ exports.getDashboardStats = async (req, res, next) => {
         reviewCount: reviewsData.length,
       },
     });
+  } catch (err) { next(err); }
+};
+
+exports.updateStatus = async (req, res, next) => {
+  try {
+    const { currentStatus } = req.body;
+    const allowed = ["available", "busy", "deep_work", "break", "offline"];
+    if (!allowed.includes(currentStatus))
+      return res.status(400).json({ message: "Invalid status" });
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { currentStatus, statusUpdatedAt: new Date() },
+      { new: true }
+    );
+    // Broadcast to all connected clients via socket
+    if (req.app.get("io")) {
+      req.app.get("io").emit("userStatusChanged", {
+        userId: user._id,
+        currentStatus: user.currentStatus,
+        statusUpdatedAt: user.statusUpdatedAt,
+      });
+    }
+    res.json({ success: true, currentStatus: user.currentStatus, statusUpdatedAt: user.statusUpdatedAt });
   } catch (err) { next(err); }
 };
 

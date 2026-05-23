@@ -1,5 +1,7 @@
 const Project = require("../models/Project");
 const User = require("../models/User");
+const ScamReport = require("../models/ScamReport");
+const analyzeProject = require("../config/scamDetector");
 
 exports.getProjects = async (req, res, next) => {
   try {
@@ -39,7 +41,16 @@ exports.createProject = async (req, res, next) => {
     console.log("createProject payload:", req.body);
     const project = await Project.create({ ...req.body, client: req.user._id });
     console.log("Project created:", project._id, project.title);
+    // Run scam detection asynchronously — does not block project creation
+    analyzeProject(project).catch((err) => console.error("Scam detection error:", err));
     res.status(201).json({ success: true, project });
+  } catch (err) { next(err); }
+};
+
+exports.getScamReport = async (req, res, next) => {
+  try {
+    const report = await ScamReport.findOne({ project: req.params.id });
+    res.json({ success: true, report: report || null });
   } catch (err) { next(err); }
 };
 

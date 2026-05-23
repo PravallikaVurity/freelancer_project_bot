@@ -163,6 +163,7 @@ const io = new Server(server, {
 });
 
 require("./socket")(io);
+app.set("io", io);
 
 app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }));
 app.use(express.json());
@@ -175,6 +176,7 @@ app.use("/api/messages", require("./routes/messages"));
 app.use("/api/reviews", require("./routes/reviews"));
 app.use("/api/admin", require("./routes/admin"));
 app.use("/api/earnings", require("./routes/earnings"));
+app.use("/api/battle", require("./routes/battle"));
 
 app.get("/api/health", (req, res) => res.json({ status: "ok" }));
 

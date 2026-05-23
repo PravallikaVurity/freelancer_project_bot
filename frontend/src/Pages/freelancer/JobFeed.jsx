@@ -79,7 +79,7 @@ const JobFeed = () => {
 
   // Real-time: listen for new projects posted by clients
   useEffect(() => {
-    const sock = io(import.meta.env.VITE_API_URL?.replace("/api", "") || "http://localhost:5000", {
+    const sock = io(import.meta.env.VITE_API_URL?.replace("/api", "") || "http://localhost:5001", {
       auth: { userId: user?._id },
     });
     sock.on("newProject", () => {

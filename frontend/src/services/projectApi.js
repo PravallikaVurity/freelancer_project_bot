@@ -10,3 +10,4 @@ export const saveJob = (id) => api.post(`/projects/${id}/save`);
 export const getSavedJobs = () => api.get("/projects/saved");
 export const submitProposal = (projectId, data) => api.post(`/projects/${projectId}/proposals`, data);
 export const getProposals = (projectId) => api.get(`/projects/${projectId}/proposals`);
+export const getScamReport = (id) => api.get(`/projects/${id}/scam-report`);

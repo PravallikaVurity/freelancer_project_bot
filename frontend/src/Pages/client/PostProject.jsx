@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
 import DashboardPage from "../../components/DashboardPage";
-import { createProject } from "../../services/projectApi";
+import { createProject, getScamReport } from "../../services/projectApi";
 import { useAuth } from "../../context/AuthContext";
 import toast from "react-hot-toast";
 
@@ -12,6 +12,7 @@ const PostProject = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [scamWarning, setScamWarning] = useState(null);
   const [form, setForm] = useState({
     title: "", description: "", category: "Web Development",
     skills: "", budgetType: "fixed", budgetMin: "", budgetMax: "",
@@ -43,9 +44,17 @@ const PostProject = () => {
       const { data } = await createProject(payload);
       console.log("Project created:", data.project?._id, data.project?.title);
 
+      // Check scam report after a short delay (detection runs async on backend)
+      setTimeout(async () => {
+        try {
+          const { data: r } = await getScamReport(data.project._id);
+          if (r.report && r.report.riskLevel !== "low") setScamWarning(r.report);
+        } catch { /* non-critical */ }
+      }, 1500);
+
       // Broadcast new project to all connected freelancers in real-time
       try {
-        const sock = io(import.meta.env.VITE_API_URL?.replace("/api", "") || "http://localhost:5000", { auth: { userId: user?._id } });
+        const sock = io(import.meta.env.VITE_API_URL?.replace("/api", "") || "http://localhost:5001", { auth: { userId: user?._id } });
         sock.emit("broadcastProject", { title: form.title });
         setTimeout(() => sock.disconnect(), 2000);
       } catch { /* non-critical */ }
@@ -72,6 +81,23 @@ const PostProject = () => {
   return (
     <DashboardPage title="Post a Project" description="Describe your project to attract the best freelancers.">
       <div className="max-w-3xl">
+        {/* Scam Warning Banner */}
+        {scamWarning && (
+          <div className={`rounded-xl px-5 py-4 mb-6 border text-sm ${
+            scamWarning.riskLevel === "high"
+              ? "bg-[#ff6b6b]/10 border-[#ff6b6b]/30 text-[#ff6b6b]"
+              : "bg-yellow-400/10 border-yellow-400/30 text-yellow-400"
+          }`}>
+            <p className="font-semibold mb-2">
+              {scamWarning.riskLevel === "high" ? "🔴 High Risk Detected" : "🟡 Medium Risk Detected"} — Your project was flagged
+            </p>
+            <ul className="space-y-1 text-xs opacity-90">
+              {scamWarning.reasons.map((r, i) => <li key={i}>⚠ {r}</li>)}
+            </ul>
+            <p className="text-xs mt-2 opacity-70">Your project was still posted. Please review the above concerns.</p>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="glass rounded-2xl p-8 space-y-6">
           <div>
             <label className="block text-sm font-medium text-[#e8e8f0] mb-2">Project Title *</label>

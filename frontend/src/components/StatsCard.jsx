@@ -1,5 +1,5 @@
 const StatsCard = ({ label, value, icon: Icon, color = "text-[#2ee6a6]", sub }) => (
-  <div className="glass rounded-2xl p-6 card-glow">
+  <div className="glass rounded-2xl p-6 card-glow h-full">
     <div className="flex items-start justify-between mb-4">
       <p className="text-sm text-[#8b8ba3]">{label}</p>
       {Icon && (

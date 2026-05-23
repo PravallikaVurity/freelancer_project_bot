@@ -2,6 +2,7 @@ import { useState } from "react";
 import { FaUser, FaEnvelope, FaPhone, FaMapMarkerAlt, FaEdit, FaSave } from "react-icons/fa";
 import DashboardPage from "../../components/DashboardPage";
 import StarRating from "../../components/StarRating";
+import { StatusDisplay, StatusSelector } from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { updateProfile } from "../../services/authApi";
 import toast from "react-hot-toast";
@@ -37,14 +38,18 @@ const FreelancerProfile = () => {
           </div>
           <h2 className="font-display text-xl font-bold">{user?.name}</h2>
           <p className="text-[#8b8ba3] text-sm mt-1 capitalize">{user?.role}</p>
+          <div className="mt-2">
+            <StatusDisplay status={user?.currentStatus} updatedAt={user?.statusUpdatedAt} />
+          </div>
           <div className="mt-3"><StarRating rating={user?.rating || 0} /></div>
           <p className="text-xs text-[#8b8ba3] mt-1">{user?.reviewCount || 0} reviews · {user?.completedProjects || 0} projects</p>
           {user?.hourlyRate > 0 && <p className="text-[#2ee6a6] font-semibold mt-3">${user.hourlyRate}/hr</p>}
         </div>
 
         <div className="lg:col-span-2 glass rounded-2xl p-8">
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
             <h2 className="font-display text-lg font-bold">Account Details</h2>
+            <StatusSelector />
             <button type="button" onClick={() => editing ? handleSave() : setEditing(true)} disabled={loading}
               className="flex items-center gap-2 text-sm text-[#2ee6a6] hover:underline">
               {editing ? <><FaSave /> {loading ? "Saving..." : "Save"}</> : <><FaEdit /> Edit</>}

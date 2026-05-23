@@ -13,6 +13,7 @@ const proposalSchema = new mongoose.Schema(
       default: "pending",
     },
     attachments: [{ url: String, name: String }],
+    voiceFile: { url: String, duration: Number },
   },
   { timestamps: true }
 );

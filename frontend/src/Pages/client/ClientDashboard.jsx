@@ -1,49 +1,153 @@
-import { FaList, FaFileAlt, FaUsers, FaCheckCircle } from "react-icons/fa";
-import { Link } from "react-router-dom";
+import { useEffect, useState, useRef } from "react";
+import { FaList, FaFileAlt, FaUsers, FaCheckCircle, FaFire } from "react-icons/fa";
+import { Link, useNavigate } from "react-router-dom";
+import { io } from "socket.io-client";
 import DashboardPage from "../../components/DashboardPage";
 import StatsCard from "../../components/StatsCard";
 import Badge from "../../components/Badge";
+import { StatusSelector } from "../../components/StatusBadge";
+import { getActiveBattles } from "../../services/battleApi";
+import { getMyProjects } from "../../services/projectApi";
 import { useAuth } from "../../context/AuthContext";
-
-const recentProjects = [
-  { title: "Community Website Redesign", status: "open", proposals: 4, budget: "$1,200" },
-  { title: "Nonprofit Social Media Kit", status: "in_progress", proposals: 7, budget: "$45/hr" },
-  { title: "Mobile App UI", status: "completed", proposals: 12, budget: "$2,500" },
-];
 
 const ClientDashboard = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const [projects, setProjects] = useState([]);
+  const [battles, setBattles] = useState([]);
+  const [loadingProjects, setLoadingProjects] = useState(true);
+  const [loadingBattles, setLoadingBattles] = useState(true);
+
+  const fetchBattles = () => {
+    getActiveBattles()
+      .then(({ data }) => setBattles(data.battles || []))
+      .catch(() => {})
+      .finally(() => setLoadingBattles(false));
+  };
+
+  const fetchProjects = () => {
+    getMyProjects()
+      .then(({ data }) => setProjects(data.projects || []))
+      .catch(() => {})
+      .finally(() => setLoadingProjects(false));
+  };
+
+  useEffect(() => {
+    fetchProjects();
+    fetchBattles();
+
+    // Real-time: refresh battles when a new proposal arrives
+    const sock = io(
+      import.meta.env.VITE_API_URL?.replace("/api", "") || "http://localhost:5001",
+      { auth: { userId: user?._id } }
+    );
+    sock.on("newProposal", () => {
+      fetchProjects();
+      fetchBattles();
+    });
+    sock.on("battleHire", () => {
+      fetchProjects();
+      fetchBattles();
+    });
+    return () => sock.disconnect();
+  }, [user?._id]);
+
+  const activeCount = projects.filter((p) => p.status === "open" || p.status === "in_progress").length;
+  const totalProposals = projects.reduce((sum, p) => sum + (p.proposals?.length || 0), 0);
+  const completedCount = projects.filter((p) => p.status === "completed").length;
 
   return (
     <DashboardPage title={`Welcome, ${user?.name?.split(" ")[0]} 👋`} description="Manage your projects and find great talent.">
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatsCard label="Active Projects" value="2" icon={FaList} color="text-[#2ee6a6]" />
-        <StatsCard label="Total Proposals" value="23" icon={FaFileAlt} color="text-[#9b6dff]" />
-        <StatsCard label="Hired Freelancers" value="5" icon={FaUsers} color="text-yellow-400" />
-        <StatsCard label="Completed" value="3" icon={FaCheckCircle} color="text-[#ff6b6b]" />
+        <div className="cursor-pointer" onClick={() => navigate("/client/projects")}>
+          <StatsCard label="Active Projects" value={loadingProjects ? "..." : activeCount} icon={FaList} color="text-[#2ee6a6]" sub="Open & in progress" />
+        </div>
+        <div className="cursor-pointer" onClick={() => navigate("/client/projects")}>
+          <StatsCard label="Total Proposals" value={loadingProjects ? "..." : totalProposals} icon={FaFileAlt} color="text-[#9b6dff]" sub="Across all projects" />
+        </div>
+        <div className="cursor-pointer" onClick={() => navigate("/client/projects")}>
+          <StatsCard label="Active Battles" value={loadingBattles ? "..." : battles.length} icon={FaFire} color="text-orange-400" sub="Compare freelancers" />
+        </div>
+        <div className="cursor-pointer" onClick={() => navigate("/client/projects")}>
+          <StatsCard label="Completed" value={loadingProjects ? "..." : completedCount} icon={FaCheckCircle} color="text-[#ff6b6b]" sub="All time" />
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 glass rounded-2xl p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="font-display text-lg font-bold">Recent Projects</h2>
-            <Link to="/client/projects" className="text-sm text-[#2ee6a6] hover:underline">View all</Link>
-          </div>
-          <div className="space-y-3">
-            {recentProjects.map((p) => (
-              <div key={p.title} className="flex items-center justify-between py-3 border-b border-white/5 last:border-0">
-                <div>
-                  <p className="font-medium text-sm">{p.title}</p>
-                  <p className="text-xs text-[#8b8ba3]">{p.proposals} proposals · {p.budget}</p>
-                </div>
-                <Badge status={p.status} />
+        <div className="lg:col-span-2 space-y-6">
+          {/* Recent Projects */}
+          <div className="glass rounded-2xl p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="font-display text-lg font-bold">Recent Projects</h2>
+              <Link to="/client/projects" className="text-sm text-[#2ee6a6] hover:underline">View all</Link>
+            </div>
+            {loadingProjects ? (
+              <p className="text-[#8b8ba3] text-sm">Loading...</p>
+            ) : projects.length === 0 ? (
+              <p className="text-[#8b8ba3] text-sm">No projects yet. <Link to="/client/post-project" className="text-[#2ee6a6] hover:underline">Post one</Link>.</p>
+            ) : (
+              <div className="space-y-3">
+                {projects.slice(0, 5).map((p) => (
+                  <div key={p._id} className="flex items-center justify-between py-3 border-b border-white/5 last:border-0">
+                    <div>
+                      <p className="font-medium text-sm">{p.title}</p>
+                      <p className="text-xs text-[#8b8ba3]">{p.proposals?.length || 0} proposals · ${p.budget?.min}–${p.budget?.max}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge status={p.status} />
+                      {p.proposals?.length > 0 && (
+                        <Link to={`/client/projects/${p._id}/battle`} className="p-1 glass-light rounded-lg text-[#8b8ba3] hover:text-orange-400 transition" title="Battle Mode">
+                          <FaFire className="text-xs" />
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
+          </div>
+
+          {/* Active Battles */}
+          <div className="glass rounded-2xl p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="font-display text-lg font-bold flex items-center gap-2">
+                <FaFire className="text-orange-400" /> Active Battles
+              </h2>
+              <Link to="/client/projects" className="text-sm text-[#2ee6a6] hover:underline">All projects</Link>
+            </div>
+            {loadingBattles ? (
+              <p className="text-[#8b8ba3] text-sm">Loading...</p>
+            ) : battles.length === 0 ? (
+              <p className="text-[#8b8ba3] text-sm py-2">No active battles. Post a project and wait for proposals to start a battle.</p>
+            ) : (
+              <div className="space-y-3">
+                {battles.map((b) => (
+                  <div key={b._id} className="flex items-center justify-between py-3 border-b border-white/5 last:border-0">
+                    <div>
+                      <p className="font-medium text-sm">{b.project?.title}</p>
+                      <p className="text-xs text-[#8b8ba3]">{b.freelancers?.length || 0} competitors</p>
+                    </div>
+                    <Link
+                      to={`/client/projects/${b.project?._id}/battle`}
+                      className="btn-ghost text-xs py-1.5 px-3 flex items-center gap-1.5"
+                    >
+                      <FaFire className="text-orange-400" /> Compare Freelancers
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
         <div className="glass rounded-2xl p-6">
-          <h2 className="font-display text-lg font-bold mb-6">Quick Actions</h2>
+          <h2 className="font-display text-lg font-bold mb-4">Quick Actions</h2>
+          <div className="mb-5 pb-4 border-b border-white/10">
+            <StatusSelector />
+            <p className="text-xs text-[#8b8ba3] mt-1.5">
+              Updated: {user?.statusUpdatedAt ? new Date(user.statusUpdatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
+            </p>
+          </div>
           <div className="space-y-3">
             <Link to="/client/post-project" className="btn-primary w-full text-sm">Post a Project</Link>
             <Link to="/client/projects" className="btn-ghost w-full text-sm">Manage Projects</Link>

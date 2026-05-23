@@ -1,5 +1,6 @@
 const Proposal = require("../models/Proposal");
 const Project = require("../models/Project");
+const { uploadToCloudinary } = require("../config/cloudinary");
 
 exports.submitProposal = async (req, res, next) => {
   try {
@@ -63,5 +64,20 @@ exports.getMyProposals = async (req, res, next) => {
       .populate("project", "title budget status client")
       .sort({ createdAt: -1 });
     res.json({ success: true, proposals });
+  } catch (err) { next(err); }
+};
+
+exports.uploadVoiceProposal = async (req, res, next) => {
+  try {
+    const proposal = await Proposal.findById(req.params.id);
+    if (!proposal) return res.status(404).json({ message: "Proposal not found" });
+    if (proposal.freelancer.toString() !== req.user._id.toString())
+      return res.status(403).json({ message: "Not authorized" });
+    if (!req.file) return res.status(400).json({ message: "No audio file provided" });
+
+    const result = await uploadToCloudinary(req.file.buffer, "voice-proposals");
+    proposal.voiceFile = { url: result.secure_url, duration: req.body.duration ? Number(req.body.duration) : null };
+    await proposal.save();
+    res.json({ success: true, voiceFile: proposal.voiceFile });
   } catch (err) { next(err); }
 };

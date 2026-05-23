@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 import DashboardPage from "../components/DashboardPage";
 import LoadingSpinner from "../components/LoadingSpinner";
+import { StatusDisplay } from "../components/StatusBadge";
 import { getConversations, getMessages, sendMessage } from "../services/chatApi";
 import { useAuth } from "../context/AuthContext";
 import toast from "react-hot-toast";
@@ -17,11 +18,12 @@ const Messages = () => {
   const [loading, setLoading] = useState(true);
   const [typing, setTyping] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState([]);
+  const [userStatuses, setUserStatuses] = useState({});
   const bottomRef = useRef(null);
   const typingTimer = useRef(null);
 
   useEffect(() => {
-    socket = io(import.meta.env.VITE_API_URL?.replace("/api", "") || "http://localhost:5000", {
+    socket = io(import.meta.env.VITE_API_URL?.replace("/api", "") || "http://localhost:5001", {
       auth: { userId: user?._id },
     });
     socket.on("newMessage", (msg) => {
@@ -34,6 +36,9 @@ const Messages = () => {
     socket.on("typing", () => setTyping(true));
     socket.on("stopTyping", () => setTyping(false));
     socket.on("onlineUsers", (users) => setOnlineUsers(users));
+    socket.on("userStatusChanged", ({ userId, currentStatus, statusUpdatedAt }) => {
+      setUserStatuses((prev) => ({ ...prev, [userId]: { currentStatus, statusUpdatedAt } }));
+    });
     // Refresh conversation list when a new conversation is created (after proposal submit)
     socket.on("newProposal", () => {
       getConversations().then(({ data }) => setConversations(data.conversations)).catch(() => {});
@@ -92,7 +97,10 @@ const Messages = () => {
                   </div>
                   <div className="min-w-0">
                     <p className="font-medium text-sm truncate">{other?.name}</p>
-                    <p className="text-xs text-[#8b8ba3] truncate">{c.lastMessage?.text || "No messages yet"}</p>
+                    <StatusDisplay
+                      status={userStatuses[other?._id]?.currentStatus || other?.currentStatus}
+                      className="truncate"
+                    />
                   </div>
                 </div>
               </button>
@@ -111,6 +119,10 @@ const Messages = () => {
                 </div>
                 <div>
                   <p className="font-display font-bold text-sm">{getOther(activeConv)?.name}</p>
+                  <StatusDisplay
+                    status={userStatuses[getOther(activeConv)?._id]?.currentStatus || getOther(activeConv)?.currentStatus}
+                    updatedAt={userStatuses[getOther(activeConv)?._id]?.statusUpdatedAt || getOther(activeConv)?.statusUpdatedAt}
+                  />
                   {typing && <p className="text-xs text-[#2ee6a6]">typing...</p>}
                 </div>
               </div>

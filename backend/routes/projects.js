@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
-const { getProjects, getProject, createProject, updateProject, deleteProject, getMyProjects, saveJob, getSavedJobs } = require("../controllers/projectController");
-const { submitProposal, getProposals, updateProposalStatus, withdrawProposal, getMyProposals } = require("../controllers/proposalController");
+const { getProjects, getProject, createProject, updateProject, deleteProject, getMyProjects, saveJob, getSavedJobs, getScamReport } = require("../controllers/projectController");
+const { submitProposal, getProposals } = require("../controllers/proposalController");
 const { protect, authorize } = require("../middleware/auth");
 
 router.get("/", getProjects);
@@ -9,6 +9,7 @@ router.get("/my", protect, getMyProjects);
 router.get("/saved", protect, getSavedJobs);
 router.post("/", protect, authorize("client"), createProject);
 router.get("/:id", getProject);
+router.get("/:id/scam-report", protect, getScamReport);
 router.put("/:id", protect, authorize("client"), updateProject);
 router.delete("/:id", protect, deleteProject);
 router.post("/:id/save", protect, saveJob);

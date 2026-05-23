@@ -28,6 +28,12 @@ const userSchema = new mongoose.Schema(
     linkedin: { type: String, default: "" },
     resetPasswordToken: String,
     resetPasswordExpire: Date,
+    currentStatus: {
+      type: String,
+      enum: ["available", "busy", "deep_work", "break", "offline"],
+      default: "available",
+    },
+    statusUpdatedAt: { type: Date, default: Date.now },
   },
   { timestamps: true }
 );

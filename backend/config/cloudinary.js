@@ -17,6 +17,15 @@ const upload = multer({
   },
 });
 
+const audioUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB for audio
+  fileFilter: (req, file, cb) => {
+    const allowed = ["audio/webm", "audio/mp4", "audio/mpeg", "audio/wav", "audio/ogg", "audio/mp3"];
+    cb(null, allowed.includes(file.mimetype));
+  },
+});
+
 const uploadToCloudinary = (buffer, folder = "freelancer-board") =>
   new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
@@ -26,4 +35,4 @@ const uploadToCloudinary = (buffer, folder = "freelancer-board") =>
     stream.end(buffer);
   });
 
-module.exports = { cloudinary, upload, uploadToCloudinary };
+module.exports = { cloudinary, upload, audioUpload, uploadToCloudinary };

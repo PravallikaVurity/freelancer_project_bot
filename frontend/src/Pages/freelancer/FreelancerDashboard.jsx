@@ -6,6 +6,7 @@ import DashboardPage from "../../components/DashboardPage";
 import StatsCard from "../../components/StatsCard";
 import Badge from "../../components/Badge";
 import { CardSkeleton } from "../../components/Skeleton";
+import { StatusSelector, StatusDisplay } from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { getMyProposals } from "../../services/bidApi";
 import { getDashboardStats } from "../../services/authApi";
@@ -31,7 +32,7 @@ const FreelancerDashboard = () => {
   useEffect(() => { fetchAll(); }, []);
 
   useEffect(() => {
-    const sock = io(import.meta.env.VITE_API_URL?.replace("/api", "") || "http://localhost:5000", {
+    const sock = io(import.meta.env.VITE_API_URL?.replace("/api", "") || "http://localhost:5001", {
       auth: { userId: user?._id },
     });
     sock.on("newProposal", () => fetchAll());
@@ -85,7 +86,13 @@ const FreelancerDashboard = () => {
         </div>
 
         <div className="glass rounded-2xl p-6">
-          <h2 className="font-display text-lg font-bold mb-6">Quick Actions</h2>
+          <h2 className="font-display text-lg font-bold mb-4">Quick Actions</h2>
+          <div className="mb-5 pb-4 border-b border-white/10">
+            <StatusSelector />
+            <p className="text-xs text-[#8b8ba3] mt-1.5">
+              Updated: {user?.statusUpdatedAt ? new Date(user.statusUpdatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
+            </p>
+          </div>
           <div className="space-y-3">
             <Link to="/freelancer/jobs" className="btn-primary w-full text-sm">Browse Jobs</Link>
             <Link to="/freelancer/profile" className="btn-ghost w-full text-sm">Update Profile</Link>

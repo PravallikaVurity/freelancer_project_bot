@@ -15,9 +15,15 @@ module.exports = (io) => {
       socket.join(conversationId);
     });
 
+    socket.on("joinBattleRoom", (projectId) => {
+      socket.join(`battle:${projectId}`);
+    });
+
     socket.on("broadcastProposal", (data) => {
       // Notify all connected clients about a new proposal
       io.emit("newProposal", data);
+      // Also notify the battle room for this project
+      if (data.projectId) io.to(`battle:${data.projectId}`).emit("battleNewApplicant", data);
     });
 
     socket.on("broadcastProject", (data) => {

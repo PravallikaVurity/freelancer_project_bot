@@ -5,7 +5,8 @@ import DashboardPage from "../../components/DashboardPage";
 import Badge from "../../components/Badge";
 import StarRating from "../../components/StarRating";
 import LoadingSpinner from "../../components/LoadingSpinner";
-import { getProject, submitProposal } from "../../services/projectApi";
+import VoiceRecorder from "../../components/VoiceRecorder";
+import { getProject, submitProposal, getScamReport } from "../../services/projectApi";
 import { getOrCreateConversation } from "../../services/chatApi";
 import { io } from "socket.io-client";
 import { useAuth } from "../../context/AuthContext";
@@ -23,16 +24,20 @@ const JobDetail = () => {
   const [files, setFiles] = useState([]);
   const [alreadyApplied, setAlreadyApplied] = useState(false);
   const [submittedProposal, setSubmittedProposal] = useState(null);
+  const [submittedProposalId, setSubmittedProposalId] = useState(null);
+
+  const [scamReport, setScamReport] = useState(null);
 
   useEffect(() => {
     getProject(id)
       .then(({ data }) => {
         setProject(data.project);
-        // Check if current user already submitted a proposal for this project
         const existing = data.project?.proposals?.find(
           (p) => p.freelancer?._id === user?._id || p.freelancer === user?._id
         );
         if (existing) setAlreadyApplied(true);
+        // Fetch scam report after project loads
+        getScamReport(id).then(({ data: r }) => setScamReport(r.report)).catch(() => {});
       })
       .catch(() => toast.error("Failed to load job"))
       .finally(() => setLoading(false));
@@ -63,6 +68,7 @@ const JobDetail = () => {
         deliveryTime: Number(proposal.deliveryTime),
       };
       const { data } = await submitProposal(id, payload);
+      setSubmittedProposalId(data.proposal?._id || null);
 
       // Auto-create conversation with client
       if (project?.client?._id) {
@@ -71,8 +77,8 @@ const JobDetail = () => {
 
       // Broadcast via socket
       try {
-        const sock = io(import.meta.env.VITE_API_URL?.replace("/api", "") || "http://localhost:5000", { auth: { userId: user?._id } });
-        sock.emit("broadcastProposal", { projectTitle: project?.title, freelancerName: user?.name });
+        const sock = io(import.meta.env.VITE_API_URL?.replace("/api", "") || "http://localhost:5001", { auth: { userId: user?._id } });
+        sock.emit("broadcastProposal", { projectId: id, projectTitle: project?.title, freelancerName: user?.name });
         setTimeout(() => sock.disconnect(), 2000);
       } catch { /* non-critical */ }
 
@@ -100,6 +106,22 @@ const JobDetail = () => {
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
+          {/* Scam Risk Badge */}
+          {scamReport && scamReport.riskLevel !== "low" && (
+            <div className={`rounded-xl px-4 py-3 mb-4 border text-sm ${
+              scamReport.riskLevel === "high"
+                ? "bg-[#ff6b6b]/10 border-[#ff6b6b]/30 text-[#ff6b6b]"
+                : "bg-yellow-400/10 border-yellow-400/30 text-yellow-400"
+            }`}>
+              <p className="font-semibold mb-1">
+                {scamReport.riskLevel === "high" ? "🔴 High Risk" : "🟡 Medium Risk"} — Suspicious Activity Detected
+              </p>
+              <ul className="space-y-0.5 text-xs opacity-90">
+                {scamReport.reasons.map((r, i) => <li key={i}>⚠ {r}</li>)}
+              </ul>
+            </div>
+          )}
+
           {/* Project info */}
           <div className="glass rounded-2xl p-8">
             <div className="flex items-start justify-between gap-4 mb-4">
@@ -189,6 +211,9 @@ const JobDetail = () => {
                     </div>
                   )}
                 </div>
+                {/* Voice Proposal */}
+                <VoiceRecorder proposalId={submittedProposalId} />
+
                 <div className="flex gap-3">
                   <button type="submit" disabled={submitting} className="btn-primary">{submitting ? "Submitting..." : "Submit Proposal"}</button>
                   <button type="button" onClick={() => setShowForm(false)} className="btn-ghost">Cancel</button>

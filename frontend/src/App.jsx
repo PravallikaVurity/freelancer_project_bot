@@ -32,6 +32,7 @@ import ManageProjects from "./Pages/client/ManageProjects";
 import ViewProposals from "./Pages/client/ViewProposals";
 import ClientProfile from "./Pages/client/ClientProfile";
 import ClientMessages from "./Pages/Messages";
+import BattleRoom from "./Pages/client/BattleRoom";
 
 // Admin pages
 import AdminDashboard from "./Pages/admin/AdminDashboard";
@@ -99,6 +100,7 @@ function App() {
             <Route path="/client/post-project" element={<PostProject />} />
             <Route path="/client/projects" element={<ManageProjects />} />
             <Route path="/client/projects/:id/proposals" element={<ViewProposals />} />
+            <Route path="/client/projects/:id/battle" element={<BattleRoom />} />
             <Route path="/client/messages" element={<ClientMessages />} />
             <Route path="/client/profile" element={<ClientProfile />} />
           </Route>

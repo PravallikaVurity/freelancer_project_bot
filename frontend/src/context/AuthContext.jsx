@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from "react";
+import { io } from "socket.io-client";
 import * as authApi from "../services/authApi";
 
 const AuthContext = createContext(null);
@@ -11,7 +12,17 @@ export function AuthProvider({ children }) {
     const token = localStorage.getItem("fb_token");
     const stored = localStorage.getItem("fb_user");
     if (token && stored) {
-      try { setUser(JSON.parse(stored)); } catch { /* ignore */ }
+      try {
+        const parsed = JSON.parse(stored);
+        setUser(parsed);
+        // Re-hydrate full user from server to pick up any fields missing from stored session
+        authApi.getMe().then(({ data }) => {
+          if (data.user) {
+            localStorage.setItem("fb_user", JSON.stringify(data.user));
+            setUser(data.user);
+          }
+        }).catch(() => { /* token may be expired — leave stored user as-is */ });
+      } catch { /* ignore */ }
     }
     setLoading(false);
   }, []);
@@ -86,6 +97,26 @@ export function AuthProvider({ children }) {
     localStorage.setItem("fb_user", JSON.stringify(updated));
     setUser(updated);
   };
+
+  // Listen for real-time status changes from other users (and self from other tabs)
+  useEffect(() => {
+    if (!user) return;
+    const sock = io(
+      import.meta.env.VITE_API_URL?.replace("/api", "") || "http://localhost:5001",
+      { auth: { userId: user._id } }
+    );
+    sock.on("userStatusChanged", ({ userId, currentStatus, statusUpdatedAt }) => {
+      if (userId?.toString() === user._id?.toString()) {
+        setUser((prev) => {
+          if (!prev) return prev;
+          const updated = { ...prev, currentStatus, statusUpdatedAt };
+          localStorage.setItem("fb_user", JSON.stringify(updated));
+          return updated;
+        });
+      }
+    });
+    return () => sock.disconnect();
+  }, [user?._id]);
 
   return (
     <AuthContext.Provider value={{ user, loading, login, register, logout, updateUser, isAuthenticated: !!user }}>
