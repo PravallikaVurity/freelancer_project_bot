@@ -2,103 +2,15 @@ import { useState, useRef, useEffect } from "react";
 import { FaRobot, FaTimes, FaPaperPlane, FaChevronDown } from "react-icons/fa";
 import api from "../services/api";
 
-const FALLBACK = "I couldn't find exact information. Try asking about projects, jobs, proposals, earnings, messages, or dashboard details.";
+// Extract projectId from window.location — safe outside BrowserRouter
+function getProjectId() {
+  const match = window.location.pathname.match(/\/(?:jobs|projects)\/([a-f0-9]{24})/i);
+  return match ? match[1] : null;
+}
 
-const staticAnswer = (q) => {
-  if (/\b(hi|hello|hey|help)\b/.test(q))
-    return "Hi! Welcome to Freelancer Board 👋 How can I help you today?";
-  if (/\b(register|sign up|signup|create account|join)\b/.test(q))
-    return "To register:\n1. Click Sign Up\n2. Enter your details\n3. Choose Freelancer or Client\n4. Complete profile setup";
-  if (/\b(post|posting)\b.*\b(project|job)\b|\b(project|job)\b.*\b(post|posting)\b/.test(q))
-    return "To post a project:\n1. Login as Client\n2. Open Dashboard → Post Project\n3. Add title, description, budget and deadline\n4. Submit";
-  if (/\b(bid|bidding|submit proposal|apply)\b/.test(q))
-    return "To submit a proposal:\n1. Go to Browse Jobs\n2. Open a project\n3. Click Submit Proposal\n4. Enter bid amount, delivery time and cover letter";
-  if (/\b(forgot password|reset password)\b/.test(q))
-    return "On the login page click 'Forgot password?'. Enter your email and we'll send a reset link valid for 10 minutes.";
-  if (/\b(admin|admin panel)\b/.test(q))
-    return "The Admin Panel helps manage users, projects, reports, and platform activity. Access it at /admin/dashboard.";
-  if (/\b(save|bookmark|saved jobs)\b/.test(q))
-    return "Click the bookmark icon on any job card to save it. Access saved jobs from the Saved Jobs section in your sidebar.";
-  if (/\b(role|freelancer vs client|difference)\b/.test(q))
-    return "Freelancer: browse jobs, submit proposals, earn money.\nClient: post projects, review proposals, hire freelancers.";
-  return null;
-};
-
-const getAnswer = async (input, token) => {
-  const q = input.toLowerCase().trim().replace(/\s+/g, " ");
-
-  // Static answers first (no DB needed)
-  const stat = staticAnswer(q);
-  if (stat) return stat;
-
-  if (!token) return FALLBACK;
-
-  const headers = { Authorization: `Bearer ${token}` };
-
-  try {
-    // Proposal count query
-    if (/how many proposals|proposal count|proposals (have i|i have|submitted)/.test(q)) {
-      const { data } = await api.get("/proposals/my", { headers });
-      const list = data.proposals || [];
-      const pending = list.filter((p) => p.status === "pending").length;
-      const accepted = list.filter((p) => p.status === "accepted").length;
-      const rejected = list.filter((p) => p.status === "rejected").length;
-      return `You have submitted ${list.length} proposal(s) in total.\n• Pending: ${pending}\n• Accepted: ${accepted}\n• Rejected: ${rejected}`;
-    }
-
-    // Proposal status
-    if (/\b(proposal|proposals)\b/.test(q)) {
-      const { data } = await api.get("/proposals/my", { headers });
-      const list = data.proposals || [];
-      if (!list.length) return "You haven't submitted any proposals yet.";
-      const recent = list.slice(0, 3).map((p) => `• ${p.project?.title || "Project"} — ${p.status} (₹${p.bidAmount})`).join("\n");
-      return `You have ${list.length} proposal(s). Recent:\n${recent}`;
-    }
-
-    // Earnings query
-    if (/\b(earning|earnings|total earned|how much|income|payment)\b/.test(q)) {
-      const { data } = await api.get("/earnings", { headers });
-      return `Your Earnings:\n• Total Earned: ₹${(data.total || 0).toLocaleString()}\n• Available Balance: ₹${(data.available || 0).toLocaleString()}\n• This Month: ₹${(data.thisMonth || 0).toLocaleString()}`;
-    }
-
-    // Dashboard stats
-    if (/\b(dashboard|stats|statistics|overview|summary)\b/.test(q)) {
-      const { data } = await api.get("/auth/dashboard-stats", { headers });
-      const s = data.stats || {};
-      return `Your Dashboard Summary:\n• Active Proposals: ${s.activeProposals || 0}\n• Jobs Completed: ${s.completedJobs || 0}\n• Total Earnings: ₹${(s.totalEarnings || 0).toLocaleString()}\n• Rating: ${s.rating > 0 ? `⭐ ${s.rating} (${s.reviewCount} reviews)` : "No ratings yet"}`;
-    }
-
-    // Project search by title
-    if (/project|job/.test(q)) {
-      const titleMatch = q.replace(/tell me about|show me|details of|project|job/g, "").trim();
-      if (titleMatch.length > 2) {
-        const { data } = await api.get("/projects", { params: { search: titleMatch, limit: 3 } });
-        const projects = data.projects || [];
-        if (!projects.length) return `No projects found matching "${titleMatch}". ${FALLBACK}`;
-        return projects.map((p) =>
-          `📁 ${p.title}\nBudget: ₹${p.budget?.min}–₹${p.budget?.max}\nSkills: ${p.skills?.join(", ") || "N/A"}\nStatus: ${p.status}\nDeadline: ${p.deadline ? new Date(p.deadline).toLocaleDateString() : "N/A"}\n${p.description?.slice(0, 100)}...`
-        ).join("\n\n");
-      }
-      const { data } = await api.get("/projects", { params: { limit: 5, status: "open" } });
-      const projects = data.projects || [];
-      if (!projects.length) return "No open projects found right now.";
-      return `Open Projects:\n${projects.map((p) => `• ${p.title} — ₹${p.budget?.min}–₹${p.budget?.max} (${p.skills?.slice(0, 2).join(", ")})`).join("\n")}`;
-    }
-
-    // Messages
-    if (/\b(message|messages|chat)\b/.test(q))
-      return "You can communicate with clients and freelancers through the Messages section in your sidebar.";
-
-    // Profile
-    if (/\b(profile|account|my info)\b/.test(q))
-      return "You can view and update your profile from the Profile section in your sidebar. Add skills, portfolio, hourly rate and bio.";
-
-  } catch (err) {
-    console.error("Chatbot API error:", err);
-  }
-
-  return FALLBACK;
-};
+// Timestamp formatter
+const fmtTime = (d) =>
+  new Date(d).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 
 const Msg = ({ msg }) => (
   <div className={`flex ${msg.from === "user" ? "justify-end" : "justify-start"} mb-3`}>
@@ -107,26 +19,48 @@ const Msg = ({ msg }) => (
         <FaRobot className="text-[#07070d] text-xs" />
       </div>
     )}
-    <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-line ${
-      msg.from === "user"
-        ? "bg-[#2ee6a6]/15 border border-[#2ee6a6]/30 rounded-tr-sm text-[#e8e8f0]"
-        : "glass-light rounded-tl-sm text-[#e8e8f0]"
-    }`}>
-      {msg.text}
+    <div className="flex flex-col gap-0.5 max-w-[80%]">
+      <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-line ${
+        msg.from === "user"
+          ? "bg-[#2ee6a6]/15 border border-[#2ee6a6]/30 rounded-tr-sm text-[#e8e8f0]"
+          : "glass-light rounded-tl-sm text-[#e8e8f0]"
+      }`}>
+        {msg.text}
+      </div>
+      <span className={`text-[10px] text-[#8b8ba3] ${msg.from === "user" ? "text-right" : "text-left"}`}>
+        {fmtTime(msg.ts)}
+      </span>
     </div>
   </div>
 );
 
-const SUGGESTIONS = ["How many proposals do I have?", "Show my earnings", "Show open projects", "Dashboard summary"];
+const SUGGESTIONS_FREELANCER = [
+  "Am I suitable for this project?",
+  "What skills are required?",
+  "How can I improve my proposal?",
+  "Explain React",
+];
 
 const AIChatBox = () => {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { from: "bot", text: "Hi! I'm your Freelancer Board assistant 🤖 Ask me about projects, proposals, earnings, or how to get started!" },
+    { from: "bot", text: "Hi! I'm your Freelancer Board assistant 🤖 Ask me about projects, proposals, earnings, or how to get started!", ts: Date.now() },
   ]);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const bottomRef = useRef(null);
+  const [projectId, setProjectId] = useState(getProjectId);
+
+  // Re-detect projectId on every navigation (SPA route changes)
+  useEffect(() => {
+    const onNav = () => setProjectId(getProjectId());
+    window.addEventListener("popstate", onNav);
+    // Also poll on open so clicking a project then opening chat works
+    if (open) setProjectId(getProjectId());
+    return () => window.removeEventListener("popstate", onNav);
+  }, [open]);
+
+  const suggestions = SUGGESTIONS_FREELANCER;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -134,14 +68,49 @@ const AIChatBox = () => {
 
   const send = async (text) => {
     const q = text.trim();
-    if (!q) return;
-    setMessages((prev) => [...prev, { from: "user", text: q }]);
+    if (!q || typing) return;
+
+    const userMsg = { from: "user", text: q, ts: Date.now() };
+    setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setTyping(true);
-    const token = localStorage.getItem("fb_token");
-    const answer = await getAnswer(q, token);
+
+    let answer = "I'm having trouble responding right now. Please try again.";
+
+    try {
+      const token = localStorage.getItem("fb_token");
+
+      if (token) {
+        // Build history: skip the initial welcome message (index 0), send last 20
+        const history = messages
+          .slice(1)  // skip welcome bot message
+          .slice(-20)
+          .map((m) => ({ from: m.from, text: m.text }));
+
+        const { data } = await api.post(
+          "/ai/chat",
+          { message: q, projectId: projectId || undefined, history },
+          { timeout: 30000 }
+        );
+        answer = data.answer?.trim() || "I'm having trouble responding right now. Please try again.";
+      } else {
+        answer = getOfflineAnswer(q);
+      }
+    } catch (err) {
+      if (err.code === "ECONNABORTED") {
+        answer = "Request timed out. Please try again.";
+        console.error("[AI Chat] Timeout error");
+      } else if (!err.response) {
+        answer = getOfflineAnswer(q);
+        console.error("[AI Chat] Network error — using offline fallback");
+      } else {
+        answer = err.response?.data?.message || "Something went wrong. Please try again.";
+        console.error("[AI Chat] API error:", err.response?.status, err.response?.data?.message);
+      }
+    }
+
     setTyping(false);
-    setMessages((prev) => [...prev, { from: "bot", text: answer }]);
+    setMessages((prev) => [...prev, { from: "bot", text: answer, ts: Date.now() }]);
   };
 
   const handleSubmit = (e) => { e.preventDefault(); send(input); };
@@ -158,8 +127,10 @@ const AIChatBox = () => {
       </button>
 
       {open && (
-        <div className="fixed bottom-24 right-6 z-50 w-[340px] sm:w-[380px] glass rounded-2xl border border-white/10 shadow-2xl flex flex-col animate-fade-up"
-          style={{ maxHeight: "520px" }}>
+        <div
+          className="fixed bottom-24 right-6 z-50 w-[340px] sm:w-[380px] glass rounded-2xl border border-white/10 shadow-2xl flex flex-col animate-fade-up"
+          style={{ maxHeight: "520px" }}
+        >
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
             <div className="flex items-center gap-2">
               <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#2ee6a6] to-[#9b6dff] flex items-center justify-center">
@@ -167,7 +138,7 @@ const AIChatBox = () => {
               </div>
               <div>
                 <p className="font-display font-bold text-sm">FB Assistant</p>
-                <p className="text-xs text-[#2ee6a6]">● Online</p>
+                <p className="text-xs text-[#2ee6a6]">● Online{projectId ? " · Project context loaded" : ""}</p>
               </div>
             </div>
             <button type="button" onClick={() => setOpen(false)} className="text-[#8b8ba3] hover:text-[#e8e8f0] transition p-1">
@@ -196,7 +167,7 @@ const AIChatBox = () => {
 
           {messages.length <= 1 && (
             <div className="px-4 pb-2 flex flex-wrap gap-2">
-              {SUGGESTIONS.map((s) => (
+              {suggestions.map((s) => (
                 <button key={s} type="button" onClick={() => send(s)}
                   className="text-xs px-3 py-1.5 glass-light rounded-full text-[#8b8ba3] hover:text-[#2ee6a6] hover:border-[#2ee6a6]/30 border border-white/10 transition">
                   {s}
@@ -222,5 +193,24 @@ const AIChatBox = () => {
     </>
   );
 };
+
+// Offline fallback for when backend is unreachable
+function getOfflineAnswer(q) {
+  const t = q.toLowerCase();
+  if (/\b(hi|hello|hey)\b/.test(t)) return "Hi! 👋 I'm your Freelancer Board assistant. The server seems offline — here are some things I can still help with.";
+  if (/\breact\b/.test(t)) return "React is a JavaScript library for building UIs. Key concepts: Components, JSX, Props, State (useState), Effects (useEffect), and Virtual DOM. Use it for SPAs and dynamic interfaces.";
+  if (/\bnode\.?js\b/.test(t)) return "Node.js is a server-side JavaScript runtime. It's non-blocking, event-driven, and great for REST APIs and real-time apps.";
+  if (/mongodb|mongoose/.test(t)) return "MongoDB is a NoSQL document database. Mongoose is the Node.js ODM for it — it adds schemas, validation, and query helpers.";
+  if (/\bapi\b|rest.*api/.test(t)) return "A REST API uses HTTP methods: GET (fetch), POST (create), PUT/PATCH (update), DELETE (remove). Data is exchanged as JSON.";
+  if (/\bjavascript\b|\bjs\b/.test(t)) return "JavaScript is the language of the web. Key features: async/await, arrow functions, destructuring, optional chaining (?.), and the spread operator.";
+  if (/typescript/.test(t)) return "TypeScript adds static types to JavaScript. Benefits: catch errors early, better autocomplete, clearer code contracts.";
+  if (/\bgit\b/.test(t)) return "Git essentials: git init, git add ., git commit -m 'msg', git push, git pull, git branch, git merge.";
+  if (/debug|fix.*bug/.test(t)) return "Debugging tips: read the error message, use console.log(), check the Network tab in DevTools, isolate the problem, and search the exact error on Stack Overflow.";
+  if (/interview/.test(t)) return "Common interview topics: JavaScript fundamentals, React lifecycle, REST APIs, async/await, database design, and system design basics.";
+  if (/proposal|apply|bid/.test(t)) return "Winning proposal tips: reference the client's project specifically, highlight relevant skills, justify your bid, keep it under 250 words, and end with a clear next step.";
+  if (/register|sign up/.test(t)) return "To register: Click Sign Up, enter your details, choose Freelancer, and complete your profile.";
+  if (/forgot password|reset/.test(t)) return "On the login page, click 'Forgot password?' and enter your email to receive a reset link.";
+  return "The server is currently unreachable. Please check your connection and try again. I can answer general tech questions (React, Node.js, MongoDB, APIs, Git, etc.) once reconnected.";
+}
 
 export default AIChatBox;

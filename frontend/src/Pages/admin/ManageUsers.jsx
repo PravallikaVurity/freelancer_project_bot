@@ -11,16 +11,16 @@ const ManageUsers = () => {
   const [search, setSearch] = useState("");
   const [role, setRole] = useState("");
 
-  const fetch = async () => {
+  const loadUsers = async () => {
     setLoading(true);
     try {
       const { data } = await getAdminUsers({ search, role });
-      setUsers(data.users);
+      setUsers(data.users || []);
     } catch { toast.error("Failed to load users"); }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetch(); }, [role]);
+  useEffect(() => { loadUsers(); }, [role]);
 
   const handleToggle = async (id) => {
     try {
@@ -38,7 +38,7 @@ const ManageUsers = () => {
   return (
     <DashboardPage title="Manage Users" description="View and manage all platform users.">
       <div className="flex flex-wrap gap-3 mb-6">
-        <form onSubmit={(e) => { e.preventDefault(); fetch(); }} className="flex-1 glass rounded-xl flex items-center gap-2 px-4 py-2 min-w-[200px]">
+        <form onSubmit={(e) => { e.preventDefault(); loadUsers(); }} className="flex-1 glass rounded-xl flex items-center gap-2 px-4 py-2 min-w-[200px]">
           <FaSearch className="text-[#8b8ba3]" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search users..." className="bg-transparent outline-none flex-1 text-sm text-[#e8e8f0] placeholder:text-[#8b8ba3]" />
         </form>

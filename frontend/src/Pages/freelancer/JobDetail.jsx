@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { FaMapMarkerAlt, FaClock, FaDollarSign, FaArrowLeft, FaEnvelope, FaPhone, FaInstagram, FaTwitter, FaLinkedin, FaPaperclip, FaTimes } from "react-icons/fa";
+import { FaMapMarkerAlt, FaClock, FaDollarSign, FaArrowLeft, FaEnvelope, FaPhone, FaInstagram, FaTwitter, FaLinkedin, FaPaperclip, FaTimes, FaStar } from "react-icons/fa";
 import DashboardPage from "../../components/DashboardPage";
 import Badge from "../../components/Badge";
 import StarRating from "../../components/StarRating";
 import LoadingSpinner from "../../components/LoadingSpinner";
 import VoiceRecorder from "../../components/VoiceRecorder";
+import ReviewsModal from "../../components/ReviewsModal";
 import { getProject, submitProposal, getScamReport } from "../../services/projectApi";
 import { getOrCreateConversation } from "../../services/chatApi";
 import { io } from "socket.io-client";
@@ -27,6 +28,7 @@ const JobDetail = () => {
   const [submittedProposalId, setSubmittedProposalId] = useState(null);
 
   const [scamReport, setScamReport] = useState(null);
+  const [showClientReviews, setShowClientReviews] = useState(false);
 
   useEffect(() => {
     getProject(id)
@@ -100,6 +102,17 @@ const JobDetail = () => {
 
   return (
     <DashboardPage title="">
+      {showClientReviews && client && (
+        <ReviewsModal
+          userId={client._id}
+          userName={client.name}
+          userRole="client"
+          userRating={client.rating}
+          userReviewCount={client.reviewCount}
+          userCompletedProjects={client.completedProjects}
+          onClose={() => setShowClientReviews(false)}
+        />
+      )}
       <button type="button" onClick={() => navigate(-1)} className="flex items-center gap-2 text-[#8b8ba3] hover:text-[#e8e8f0] text-sm mb-6 transition">
         <FaArrowLeft /> Back to jobs
       </button>
@@ -235,8 +248,14 @@ const JobDetail = () => {
             {!showForm && status === "open" && !alreadyApplied && (
               <button type="button" onClick={() => setShowForm(true)} className="btn-primary w-full mt-6 text-sm">Apply Now</button>
             )}
-            {alreadyApplied && (
+            {status === "assigned" && (
+              <p className="text-center text-sm text-[#9b6dff] mt-6 font-medium">🔒 A freelancer has been assigned to this project</p>
+            )}
+            {alreadyApplied && status !== "assigned" && (
               <p className="text-center text-sm text-[#2ee6a6] mt-6 font-medium">✓ You have already applied for this project</p>
+            )}
+            {alreadyApplied && status === "assigned" && (
+              <p className="text-center text-sm text-[#2ee6a6] mt-6 font-medium">✓ You were selected for this project</p>
             )}
           </div>
 
@@ -254,6 +273,13 @@ const JobDetail = () => {
                 </div>
               </div>
               <StarRating rating={client.rating} />
+              <button
+                type="button"
+                onClick={() => setShowClientReviews(true)}
+                className="mt-3 flex items-center gap-1.5 text-xs text-[#2ee6a6] hover:underline transition"
+              >
+                <FaStar className="text-yellow-400" /> View Client Reviews
+              </button>
 
               {/* Contact details — only if client opted to share */}
               {client.showContact && (

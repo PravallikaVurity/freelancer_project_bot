@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { FaArrowUp, FaArrowDown } from "react-icons/fa";
+import { FaArrowUp, FaArrowDown, FaCheckCircle, FaTimesCircle, FaClock } from "react-icons/fa";
 import DashboardPage from "../components/DashboardPage";
 import { CardSkeleton } from "../components/Skeleton";
-import { getMyEarnings, getWithdrawals, requestWithdrawal } from "../services/earningsApi";
+import { getMyEarnings, getWithdrawals, requestWithdrawal, completeWithdrawal } from "../services/earningsApi";
 import toast from "react-hot-toast";
 
 const METHODS = [
@@ -13,18 +13,32 @@ const METHODS = [
   { value: "credit_card", label: "Credit Card" },
 ];
 
-const StatusBadge = ({ status }) => {
-  const styles = {
-    pending: "bg-yellow-400/15 text-yellow-400",
-    completed: "bg-[#2ee6a6]/15 text-[#2ee6a6]",
-    failed: "bg-[#ff6b6b]/15 text-[#ff6b6b]",
-  };
-  return (
-    <span className={`px-2.5 py-1 rounded-full text-xs font-medium capitalize ${styles[status] || styles.pending}`}>
-      {status}
-    </span>
-  );
+const STATUS_STYLES = {
+  pending_approval: "bg-yellow-400/15 text-yellow-400",
+  approved: "bg-[#2ee6a6]/15 text-[#2ee6a6]",
+  rejected: "bg-[#ff6b6b]/15 text-[#ff6b6b]",
+  withdrawn: "bg-[#9b6dff]/15 text-[#9b6dff]",
+  // legacy
+  pending: "bg-yellow-400/15 text-yellow-400",
+  completed: "bg-[#2ee6a6]/15 text-[#2ee6a6]",
+  failed: "bg-[#ff6b6b]/15 text-[#ff6b6b]",
 };
+
+const STATUS_LABELS = {
+  pending_approval: "Pending Approval",
+  approved: "Approved",
+  rejected: "Rejected",
+  withdrawn: "Withdrawn",
+  pending: "Pending",
+  completed: "Completed",
+  failed: "Failed",
+};
+
+const StatusBadge = ({ status }) => (
+  <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_STYLES[status] || STATUS_STYLES.pending}`}>
+    {STATUS_LABELS[status] || status}
+  </span>
+);
 
 const Earnings = () => {
   const [summary, setSummary] = useState({ available: 0, thisMonth: 0, total: 0 });
@@ -34,6 +48,7 @@ const Earnings = () => {
   const [showWithdraw, setShowWithdraw] = useState(false);
   const [form, setForm] = useState({ amount: "", method: "upi", details: "" });
   const [submitting, setSubmitting] = useState(false);
+  const [completing, setCompleting] = useState(null);
 
   const fetchData = async () => {
     try {
@@ -58,24 +73,43 @@ const Earnings = () => {
     try {
       const { data } = await requestWithdrawal({ amount: Number(form.amount), method: form.method, details: form.details });
       setWithdrawals((prev) => [data.withdrawal, ...prev]);
-      setSummary((prev) => ({ ...prev, available: prev.available - Number(form.amount) }));
-      toast.success("Withdrawal request submitted!");
+      toast.success("Withdrawal request submitted! Awaiting client approval.");
       setForm({ amount: "", method: "upi", details: "" });
       setShowWithdraw(false);
     } catch (err) {
-      console.error("Withdrawal error:", err);
-      toast.error(err.response?.data?.message || "Unable to process withdrawal");
+      toast.error(err.response?.data?.message || "Unable to submit withdrawal request");
     } finally { setSubmitting(false); }
   };
+
+  const handleComplete = async (id) => {
+    setCompleting(id);
+    try {
+      const { data } = await completeWithdrawal(id);
+      setWithdrawals((prev) => prev.map((w) => w._id === id ? data.withdrawal : w));
+      setSummary((prev) => {
+        const w = withdrawals.find((x) => x._id === id);
+        return { ...prev, available: prev.available - (w?.amount || 0) };
+      });
+      toast.success("Withdrawal completed!");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to complete withdrawal");
+    } finally { setCompleting(null); }
+  };
+
+  // Effective available = available minus pending/approved withdrawals
+  const pendingTotal = withdrawals
+    .filter((w) => w.status === "pending_approval" || w.status === "approved")
+    .reduce((sum, w) => sum + w.amount, 0);
+  const effectiveAvailable = Math.max(0, summary.available - pendingTotal);
 
   return (
     <DashboardPage title="Earnings" description="Overview of your income and payout history.">
       {/* Stats */}
       <div className="grid sm:grid-cols-3 gap-4 mb-8">
         {[
-          { label: "Available balance", value: `$${summary.available.toLocaleString()}` },
-          { label: "This month", value: `$${summary.thisMonth.toLocaleString()}` },
-          { label: "Total earned", value: `$${summary.total.toLocaleString()}` },
+          { label: "Available balance", value: `₹${effectiveAvailable.toLocaleString()}` },
+          { label: "This month", value: `₹${summary.thisMonth.toLocaleString()}` },
+          { label: "Total earned", value: `₹${summary.total.toLocaleString()}` },
         ].map((stat) => (
           <div key={stat.label} className="glass rounded-2xl p-6 card-glow">
             <p className="text-sm text-[#8b8ba3] mb-2">{stat.label}</p>
@@ -89,20 +123,23 @@ const Earnings = () => {
         <div className="flex justify-between items-center mb-4">
           <h2 className="font-display text-lg font-bold">Withdraw Funds</h2>
           <button type="button" onClick={() => setShowWithdraw((v) => !v)} className="btn-primary text-sm py-2 px-4">
-            {showWithdraw ? "Cancel" : "Withdraw"}
+            {showWithdraw ? "Cancel" : "Request Withdrawal"}
           </button>
         </div>
 
-        <p className="text-sm text-[#8b8ba3] mb-4">
-          Available Balance: <span className="text-[#2ee6a6] font-semibold">${summary.available.toLocaleString()}</span>
+        <p className="text-sm text-[#8b8ba3] mb-1">
+          Available Balance: <span className="text-[#2ee6a6] font-semibold">₹{effectiveAvailable.toLocaleString()}</span>
+        </p>
+        <p className="text-xs text-[#8b8ba3] mb-4">
+          Withdrawal requests require client approval before funds are released.
         </p>
 
         {showWithdraw && (
           <form onSubmit={handleWithdraw} className="space-y-4 border-t border-white/10 pt-4">
             <div>
-              <label className="block text-sm font-medium text-[#e8e8f0] mb-2">Amount ($)</label>
+              <label className="block text-sm font-medium text-[#e8e8f0] mb-2">Amount (₹)</label>
               <input
-                type="number" required min="1" max={summary.available}
+                type="number" required min="1" max={effectiveAvailable}
                 value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })}
                 placeholder="Enter amount" className="input-field !pl-4 w-48"
               />
@@ -134,7 +171,7 @@ const Earnings = () => {
             </div>
 
             <button type="submit" disabled={submitting} className="btn-primary text-sm">
-              {submitting ? "Processing..." : "Withdraw Funds"}
+              {submitting ? "Submitting..." : "Submit Request"}
             </button>
           </form>
         )}
@@ -143,19 +180,37 @@ const Earnings = () => {
       {/* Withdrawal History */}
       {withdrawals.length > 0 && (
         <div className="glass rounded-2xl p-6 mb-6">
-          <h2 className="font-display text-lg font-bold mb-4">Withdrawal History</h2>
+          <h2 className="font-display text-lg font-bold mb-4">Withdrawal Requests</h2>
           <ul className="space-y-3">
             {withdrawals.map((w) => (
-              <li key={w._id} className="flex items-center justify-between py-3 border-b border-white/5 last:border-0">
-                <div>
-                  <p className="font-medium text-sm capitalize">{w.method.replace("_", " ")}</p>
-                  <p className="text-xs text-[#8b8ba3]">{new Date(w.createdAt).toLocaleDateString()}</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-[#ff6b6b] font-semibold flex items-center gap-1 text-sm">
-                    <FaArrowDown className="text-xs" />${w.amount}
-                  </span>
-                  <StatusBadge status={w.status} />
+              <li key={w._id} className="py-3 border-b border-white/5 last:border-0">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-sm capitalize">{w.method.replace("_", " ")}</p>
+                    <p className="text-xs text-[#8b8ba3]">{new Date(w.createdAt).toLocaleDateString()}</p>
+                    {w.client?.name && (
+                      <p className="text-xs text-[#8b8ba3]">Client: {w.client.name}</p>
+                    )}
+                    {w.status === "rejected" && w.rejectionReason && (
+                      <p className="text-xs text-[#ff6b6b] mt-1">Reason: {w.rejectionReason}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[#ff6b6b] font-semibold flex items-center gap-1 text-sm">
+                      <FaArrowDown className="text-xs" />₹{w.amount}
+                    </span>
+                    <StatusBadge status={w.status} />
+                    {w.status === "approved" && (
+                      <button
+                        type="button"
+                        onClick={() => handleComplete(w._id)}
+                        disabled={completing === w._id}
+                        className="btn-primary text-xs py-1.5 px-3 disabled:opacity-50"
+                      >
+                        {completing === w._id ? "Processing..." : "Complete"}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </li>
             ))}
@@ -179,7 +234,7 @@ const Earnings = () => {
                   <p className="text-sm text-[#8b8ba3]">{e.client?.name} · {new Date(e.createdAt).toLocaleDateString()}</p>
                 </div>
                 <span className="text-[#2ee6a6] font-semibold flex items-center gap-1">
-                  <FaArrowUp className="text-xs" />${e.amount}
+                  <FaArrowUp className="text-xs" />₹{e.amount}
                 </span>
               </li>
             ))}

@@ -39,23 +39,14 @@ export function AuthProvider({ children }) {
       return data.user;
     } catch (err) {
       if (!err.response) {
-        // Backend offline — try mock session
-        const stored = localStorage.getItem("fb_mock_" + credentials.email);
-        if (stored) {
-          const mock = JSON.parse(stored);
-          if (mock.password === credentials.password) {
-            const { password, ...u } = mock;
-            localStorage.setItem("fb_token", "mock_token");
-            localStorage.setItem("fb_user", JSON.stringify(u));
-            setUser(u);
-            console.warn("Mock session active — backend is offline. Protected actions (post project, proposals) require the backend to be running.");
-            window.__fbAdminLog?.({ type: "login", message: `${u.name} (${u.role}) signed in [mock]` });
-            return u;
-          }
-        }
-        throw new Error("Backend is offline. Please start the server and try again.");
+        throw new Error("Server connection failed. Please check your connection and try again.");
       }
-      throw err;
+      const status = err.response?.status;
+      const msg = err.response?.data?.message;
+      if (status === 401) throw new Error(msg || "Invalid email or password.");
+      if (status === 403) throw new Error(msg || "Account has been suspended.");
+      if (status === 500) throw new Error("Database connection error. Please try again later.");
+      throw new Error(msg || "Authentication failed. Please try again.");
     }
   };
 
@@ -66,19 +57,7 @@ export function AuthProvider({ children }) {
       return data.user;
     } catch (err) {
       if (!err.response) {
-        const mockUser = {
-          _id: Date.now().toString(),
-          name: formData.name,
-          email: formData.email,
-          role: formData.role || "freelancer",
-          avatar: "",
-        };
-        localStorage.setItem(
-          "fb_mock_" + formData.email,
-          JSON.stringify({ ...mockUser, password: formData.password })
-        );
-        window.__fbAdminLog?.({ type: "register", message: `New ${mockUser.role} registered: ${mockUser.name} [mock]` });
-        return mockUser;
+        throw new Error("Server connection failed. Please check your connection and try again.");
       }
       throw err;
     }
@@ -102,7 +81,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (!user) return;
     const sock = io(
-      import.meta.env.VITE_API_URL?.replace("/api", "") || "http://localhost:5001",
+      import.meta.env.VITE_API_URL?.replace("/api", "") || "http://localhost:5002",
       { auth: { userId: user._id } }
     );
     sock.on("userStatusChanged", ({ userId, currentStatus, statusUpdatedAt }) => {

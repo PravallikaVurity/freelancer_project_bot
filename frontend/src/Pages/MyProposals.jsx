@@ -1,9 +1,10 @@
 import { useEffect, useState, useRef } from "react";
 import { io } from "socket.io-client";
-import { FaPlus, FaTimes } from "react-icons/fa";
+import { FaPlus, FaTimes, FaStar } from "react-icons/fa";
 import DashboardPage from "../components/DashboardPage";
 import Badge from "../components/Badge";
 import { CardSkeleton } from "../components/Skeleton";
+import ReviewModal from "../components/ReviewModal";
 import { getMyProposals, withdrawProposal } from "../services/bidApi";
 import { getProjects, submitProposal } from "../services/projectApi";
 import { useAuth } from "../context/AuthContext";
@@ -90,12 +91,21 @@ const MyProposals = () => {
   const [proposals, setProposals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [reviewTarget, setReviewTarget] = useState(null); // { projectId, revieweeId, revieweeName }
+  const [reviewed, setReviewed] = useState({}); // projectId -> bool
   const toastShown = useRef(false);
 
   const fetchProposals = async () => {
     try {
       const { data } = await getMyProposals();
-      setProposals(data.proposals || []);
+      const list = data.proposals || [];
+      setProposals(list);
+      // Track which completed projects already have a review
+      const reviewedMap = {};
+      list.forEach((p) => {
+        if (p.project?.status === "completed") reviewedMap[p.project._id] = false;
+      });
+      setReviewed(reviewedMap);
     } catch (err) {
       console.error("Proposal fetch error:", err);
       setProposals([]);
@@ -133,6 +143,15 @@ const MyProposals = () => {
           onCreated={fetchProposals}
         />
       )}
+      {reviewTarget && (
+        <ReviewModal
+          projectId={reviewTarget.projectId}
+          revieweeId={reviewTarget.revieweeId}
+          revieweeName={reviewTarget.revieweeName}
+          onClose={() => setReviewTarget(null)}
+          onSubmitted={() => setReviewed((prev) => ({ ...prev, [reviewTarget.projectId]: true }))}
+        />
+      )}
 
       <DashboardPage
         title="My Proposals"
@@ -168,6 +187,18 @@ const MyProposals = () => {
                   <Badge status={p.status} />
                   {p.status === "pending" && (
                     <button type="button" onClick={() => handleWithdraw(p._id)} className="text-xs text-[#8b8ba3] hover:text-[#ff6b6b] transition">Withdraw</button>
+                  )}
+                  {p.status === "accepted" && p.project?.status === "completed" && p.project?.client && !reviewed[p.project._id] && (
+                    <button
+                      type="button"
+                      onClick={() => setReviewTarget({ projectId: p.project._id, revieweeId: p.project.client._id || p.project.client, revieweeName: p.project.client?.name || "Client" })}
+                      className="text-xs flex items-center gap-1 text-yellow-400 hover:text-yellow-300 transition"
+                    >
+                      <FaStar className="text-[10px]" /> Review
+                    </button>
+                  )}
+                  {reviewed[p.project?._id] && (
+                    <span className="text-xs text-[#2ee6a6]">✓ Reviewed</span>
                   )}
                 </div>
               </div>

@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FaUser, FaEnvelope, FaPhone, FaMapMarkerAlt, FaEdit, FaSave } from "react-icons/fa";
 import DashboardPage from "../../components/DashboardPage";
+import StarRating from "../../components/StarRating";
 import { useAuth } from "../../context/AuthContext";
 import { updateProfile } from "../../services/authApi";
+import { getUserReviews } from "../../services/reviewApi";
 import toast from "react-hot-toast";
 
 const ClientProfile = () => {
@@ -10,6 +12,13 @@ const ClientProfile = () => {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ name: user?.name || "", bio: user?.bio || "", phone: user?.phone || "", location: user?.location || "" });
   const [loading, setLoading] = useState(false);
+  const [reviews, setReviews] = useState([]);
+
+  useEffect(() => {
+    if (user?._id) {
+      getUserReviews(user._id).then(({ data }) => setReviews(data.reviews || [])).catch(() => {});
+    }
+  }, [user?._id]);
 
   const handleSave = async () => {
     setLoading(true);
@@ -35,6 +44,12 @@ const ClientProfile = () => {
           </div>
           <h2 className="font-display text-xl font-bold">{user?.name}</h2>
           <p className="text-[#8b8ba3] text-sm mt-1 capitalize">{user?.role}</p>
+          {(user?.rating > 0) && (
+            <div className="mt-3">
+              <StarRating rating={user.rating} />
+              <p className="text-xs text-[#8b8ba3] mt-1">{user.reviewCount || 0} reviews</p>
+            </div>
+          )}
         </div>
 
         <div className="lg:col-span-2 glass rounded-2xl p-8">
@@ -72,6 +87,32 @@ const ClientProfile = () => {
             </div>
           </div>
         </div>
+
+        {/* Reviews Section */}
+        {reviews.length > 0 && (
+          <div className="lg:col-span-3 glass rounded-2xl p-6">
+            <h2 className="font-display text-lg font-bold mb-4">Reviews ({reviews.length})</h2>
+            <div className="space-y-4">
+              {reviews.map((r) => (
+                <div key={r._id} className="border-b border-white/5 last:border-0 pb-4 last:pb-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <div className="h-7 w-7 rounded-full bg-gradient-to-br from-[#9b6dff] to-[#2ee6a6] flex items-center justify-center text-[#07070d] font-bold text-xs shrink-0">
+                        {r.reviewer?.name?.[0]}
+                      </div>
+                      <span className="text-sm font-medium">{r.reviewer?.name}</span>
+                      <span className="text-xs text-[#8b8ba3] capitalize">{r.reviewer?.role}</span>
+                    </div>
+                    <StarRating rating={r.rating} size="text-xs" />
+                  </div>
+                  {r.title && <p className="text-sm font-semibold text-[#e8e8f0] mt-1">{r.title}</p>}
+                  <p className="text-sm text-[#8b8ba3] mt-1">{r.comment}</p>
+                  <p className="text-xs text-[#8b8ba3] mt-1">{r.project?.title} · {new Date(r.createdAt).toLocaleDateString()}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </DashboardPage>
   );

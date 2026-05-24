@@ -4,6 +4,7 @@ const Proposal = require("../models/Proposal");
 const Dispute = require("../models/Dispute");
 const Skill = require("../models/Skill");
 const Earning = require("../models/Earning");
+const ContactInfo = require("../models/ContactInfo");
 
 exports.getStats = async (req, res, next) => {
   try {
@@ -82,6 +83,59 @@ exports.deleteSkill = async (req, res, next) => {
   try {
     await Skill.findByIdAndDelete(req.params.id);
     res.json({ success: true, message: "Skill deleted" });
+  } catch (err) { next(err); }
+};
+
+exports.getContactInfo = async (req, res, next) => {
+  try {
+    let info = await ContactInfo.findOne();
+    if (!info) info = await ContactInfo.create({});
+    res.json({ success: true, contactInfo: info });
+  } catch (err) { next(err); }
+};
+
+exports.updateContactInfo = async (req, res, next) => {
+  try {
+    const allowed = ["email", "phone", "address", "website", "twitter", "linkedin", "supportInfo"];
+    const updates = {};
+    allowed.forEach((f) => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });
+    if (!Object.keys(updates).length)
+      return res.status(400).json({ message: "No valid fields provided" });
+    updates.updatedBy = req.user._id;
+    let info = await ContactInfo.findOne();
+    if (!info) info = await ContactInfo.create({ ...updates });
+    else {
+      Object.assign(info, updates);
+      await info.save();
+    }
+    res.json({ success: true, contactInfo: info });
+  } catch (err) { next(err); }
+};
+
+exports.getAllProposals = async (req, res, next) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    const total = await Proposal.countDocuments();
+    const proposals = await Proposal.find()
+      .populate("freelancer", "name email avatar")
+      .populate("project", "title budget status")
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(Number(limit));
+    res.json({ success: true, total, proposals });
+  } catch (err) { next(err); }
+};
+
+exports.getAllProjects = async (req, res, next) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    const total = await Project.countDocuments();
+    const projects = await Project.find()
+      .populate("client", "name email")
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(Number(limit));
+    res.json({ success: true, total, projects });
   } catch (err) { next(err); }
 };
 

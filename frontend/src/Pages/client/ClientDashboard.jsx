@@ -1,22 +1,27 @@
 import { useEffect, useState, useRef } from "react";
-import { FaList, FaFileAlt, FaUsers, FaCheckCircle, FaFire } from "react-icons/fa";
+import { FaList, FaFileAlt, FaCheckCircle, FaFire, FaWallet } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
 import DashboardPage from "../../components/DashboardPage";
 import StatsCard from "../../components/StatsCard";
 import Badge from "../../components/Badge";
 import { StatusSelector } from "../../components/StatusBadge";
+import PerformanceAnalysis from "../../components/PerformanceAnalysis";
 import { getActiveBattles } from "../../services/battleApi";
 import { getMyProjects } from "../../services/projectApi";
+import { getClientWithdrawalRequests, approveWithdrawal, rejectWithdrawal } from "../../services/earningsApi";
 import { useAuth } from "../../context/AuthContext";
+import toast from "react-hot-toast";
 
 const ClientDashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
   const [battles, setBattles] = useState([]);
+  const [withdrawalRequests, setWithdrawalRequests] = useState([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [loadingBattles, setLoadingBattles] = useState(true);
+  const [processingWithdrawal, setProcessingWithdrawal] = useState(null);
 
   const fetchBattles = () => {
     getActiveBattles()
@@ -32,22 +37,48 @@ const ClientDashboard = () => {
       .finally(() => setLoadingProjects(false));
   };
 
+  const fetchWithdrawalRequests = () => {
+    getClientWithdrawalRequests()
+      .then(({ data }) => setWithdrawalRequests(data.withdrawals || []))
+      .catch(() => {});
+  };
+
+  const handleApprove = async (id) => {
+    setProcessingWithdrawal(id);
+    try {
+      await approveWithdrawal(id);
+      setWithdrawalRequests((prev) => prev.map((w) => w._id === id ? { ...w, status: "approved" } : w));
+      toast.success("Withdrawal approved!");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to approve");
+    } finally { setProcessingWithdrawal(null); }
+  };
+
+  const handleReject = async (id) => {
+    const reason = prompt("Rejection reason (optional):") ?? "";
+    setProcessingWithdrawal(id);
+    try {
+      await rejectWithdrawal(id, reason);
+      setWithdrawalRequests((prev) => prev.map((w) => w._id === id ? { ...w, status: "rejected", rejectionReason: reason } : w));
+      toast.success("Withdrawal rejected.");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to reject");
+    } finally { setProcessingWithdrawal(null); }
+  };
+
   useEffect(() => {
     fetchProjects();
     fetchBattles();
+    fetchWithdrawalRequests();
 
-    // Real-time: refresh battles when a new proposal arrives
     const sock = io(
       import.meta.env.VITE_API_URL?.replace("/api", "") || "http://localhost:5001",
       { auth: { userId: user?._id } }
     );
-    sock.on("newProposal", () => {
-      fetchProjects();
-      fetchBattles();
-    });
-    sock.on("battleHire", () => {
-      fetchProjects();
-      fetchBattles();
+    sock.on("newProposal", () => { fetchProjects(); fetchBattles(); });
+    sock.on("battleHire", () => { fetchProjects(); fetchBattles(); });
+    sock.on("withdrawalRequest", ({ clientId }) => {
+      if (clientId === user?._id) fetchWithdrawalRequests();
     });
     return () => sock.disconnect();
   }, [user?._id]);
@@ -92,6 +123,9 @@ const ClientDashboard = () => {
                     <div>
                       <p className="font-medium text-sm">{p.title}</p>
                       <p className="text-xs text-[#8b8ba3]">{p.proposals?.length || 0} proposals · ${p.budget?.min}–${p.budget?.max}</p>
+                      {p.status === "assigned" && p.selectedFreelancer && (
+                        <p className="text-xs text-[#9b6dff] mt-0.5">Selected Freelancer: {p.selectedFreelancer?.name || "Assigned"}</p>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge status={p.status} />
@@ -138,6 +172,48 @@ const ClientDashboard = () => {
               </div>
             )}
           </div>
+
+          {/* Withdrawal Requests */}
+          {withdrawalRequests.filter((w) => w.status === "pending_approval").length > 0 && (
+            <div className="glass rounded-2xl p-6">
+              <h2 className="font-display text-lg font-bold flex items-center gap-2 mb-4">
+                <FaWallet className="text-yellow-400" /> Withdrawal Requests
+              </h2>
+              <div className="space-y-3">
+                {withdrawalRequests.filter((w) => w.status === "pending_approval").map((w) => (
+                  <div key={w._id} className="flex items-center justify-between py-3 border-b border-white/5 last:border-0">
+                    <div>
+                      <p className="font-medium text-sm">{w.userId?.name}</p>
+                      <p className="text-xs text-[#8b8ba3] capitalize">{w.method.replace("_", " ")} · {new Date(w.createdAt).toLocaleDateString()}</p>
+                      {w.details && <p className="text-xs text-[#8b8ba3]">{w.details}</p>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[#2ee6a6] font-semibold text-sm">₹{w.amount}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleApprove(w._id)}
+                        disabled={processingWithdrawal === w._id}
+                        className="btn-primary text-xs py-1.5 px-3 disabled:opacity-50"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleReject(w._id)}
+                        disabled={processingWithdrawal === w._id}
+                        className="btn-ghost text-xs py-1.5 px-3 hover:border-[#ff6b6b]/50 hover:text-[#ff6b6b] disabled:opacity-50"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Performance Analysis */}
+          {!loadingProjects && <PerformanceAnalysis projects={projects} />}
         </div>
 
         <div className="glass rounded-2xl p-6">

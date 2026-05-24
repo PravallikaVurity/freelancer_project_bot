@@ -31,14 +31,20 @@ module.exports = (io) => {
       io.emit("newProject", data);
     });
 
-    socket.on("sendMessage", async ({ conversationId, senderId, text, file }) => {
+    socket.on("sendMessage", async ({ conversationId, text, file }) => {
       try {
-        const message = await Message.create({ conversation: conversationId, sender: senderId, text, file });
-        await Conversation.findByIdAndUpdate(conversationId, { lastMessage: message._id });
-        await message.populate("sender", "name avatar");
+        if (!userId) return socket.emit("messageError", "Not authenticated");
+        if (!text?.trim() && !file) return socket.emit("messageError", "Message cannot be empty");
+        const conv = await Conversation.findById(conversationId);
+        if (!conv) return socket.emit("messageError", "Conversation not found");
+        const isParticipant = conv.participants.some((p) => p.toString() === userId.toString());
+        if (!isParticipant) return socket.emit("messageError", "Not authorized");
+        const message = await Message.create({ conversation: conversationId, sender: userId, text: text?.trim() || "", file });
+        await Conversation.findByIdAndUpdate(conversationId, { lastMessage: message._id, updatedAt: new Date() });
+        await message.populate("sender", "name avatar role");
         io.to(conversationId).emit("newMessage", message);
       } catch (err) {
-        socket.emit("error", err.message);
+        socket.emit("messageError", err.message);
       }
     });
 

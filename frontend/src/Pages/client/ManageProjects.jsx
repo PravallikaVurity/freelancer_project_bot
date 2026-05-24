@@ -1,20 +1,27 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { FaPlus, FaTrash, FaEye, FaFire } from "react-icons/fa";
+import { FaPlus, FaTrash, FaEye, FaFire, FaStar } from "react-icons/fa";
 import DashboardPage from "../../components/DashboardPage";
 import Badge from "../../components/Badge";
 import { CardSkeleton } from "../../components/Skeleton";
+import ReviewModal from "../../components/ReviewModal";
 import { getMyProjects, deleteProject } from "../../services/projectApi";
 import toast from "react-hot-toast";
 
 const ManageProjects = () => {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [reviewTarget, setReviewTarget] = useState(null);
+  const [reviewed, setReviewed] = useState({});
 
   const fetchProjects = async () => {
     try {
       const { data } = await getMyProjects();
-      setProjects(data.projects || []);
+      const list = data.projects || [];
+      setProjects(list);
+      const reviewedMap = {};
+      list.forEach((p) => { if (p.status === "completed") reviewedMap[p._id] = false; });
+      setReviewed(reviewedMap);
     } catch (err) {
       console.error("Load projects error:", err);
       toast.error("Unable to load projects");
@@ -34,6 +41,15 @@ const ManageProjects = () => {
 
   return (
     <DashboardPage title="My Projects" description="Manage all your posted projects.">
+      {reviewTarget && (
+        <ReviewModal
+          projectId={reviewTarget.projectId}
+          revieweeId={reviewTarget.revieweeId}
+          revieweeName={reviewTarget.revieweeName}
+          onClose={() => setReviewTarget(null)}
+          onSubmitted={() => setReviewed((prev) => ({ ...prev, [reviewTarget.projectId]: true }))}
+        />
+      )}
       <div className="flex justify-end mb-6">
         <Link to="/client/post-project" className="btn-primary text-sm flex items-center gap-2"><FaPlus /> Post Project</Link>
       </div>
@@ -65,6 +81,19 @@ const ManageProjects = () => {
                   <Link to={`/client/projects/${p._id}/battle`} className="p-1.5 glass-light rounded-lg text-[#8b8ba3] hover:text-orange-400 transition" title="Battle Mode">
                     <FaFire />
                   </Link>
+                )}
+                {p.status === "completed" && p.selectedFreelancer && !reviewed[p._id] && (
+                  <button
+                    type="button"
+                    onClick={() => setReviewTarget({ projectId: p._id, revieweeId: p.selectedFreelancer._id || p.selectedFreelancer, revieweeName: p.selectedFreelancer?.name || "Freelancer" })}
+                    className="p-1.5 glass-light rounded-lg text-yellow-400 hover:text-yellow-300 transition"
+                    title="Leave Review"
+                  >
+                    <FaStar />
+                  </button>
+                )}
+                {reviewed[p._id] && (
+                  <span className="text-xs text-[#2ee6a6] px-1">✓</span>
                 )}
                 <button type="button" onClick={() => handleDelete(p._id)} className="p-1.5 glass-light rounded-lg text-[#8b8ba3] hover:text-[#ff6b6b] transition"><FaTrash /></button>
               </div>

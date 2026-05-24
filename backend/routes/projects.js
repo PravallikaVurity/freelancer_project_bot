@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { getProjects, getProject, createProject, updateProject, deleteProject, getMyProjects, saveJob, getSavedJobs, getScamReport } = require("../controllers/projectController");
+const { getProjects, getProject, createProject, updateProject, deleteProject, getMyProjects, saveJob, getSavedJobs, getScamReport, selectFreelancer } = require("../controllers/projectController");
 const { submitProposal, getProposals } = require("../controllers/proposalController");
 const { protect, authorize } = require("../middleware/auth");
 
@@ -15,5 +15,6 @@ router.delete("/:id", protect, deleteProject);
 router.post("/:id/save", protect, saveJob);
 router.post("/:projectId/proposals", protect, authorize("freelancer"), submitProposal);
 router.get("/:projectId/proposals", protect, authorize("client"), getProposals);
+router.post("/:id/select-freelancer", protect, authorize("client"), selectFreelancer);
 
 module.exports = router;

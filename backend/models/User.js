@@ -28,6 +28,12 @@ const userSchema = new mongoose.Schema(
     linkedin: { type: String, default: "" },
     resetPasswordToken: String,
     resetPasswordExpire: Date,
+    // OTP login
+    otpHash: { type: String, select: false },
+    otpExpire: { type: Date, select: false },
+    otpAttempts: { type: Number, default: 0, select: false },
+    otpResendCount: { type: Number, default: 0, select: false },
+    otpResendResetAt: { type: Date, select: false },
     currentStatus: {
       type: String,
       enum: ["available", "busy", "deep_work", "break", "offline"],

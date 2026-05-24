@@ -35,6 +35,9 @@ const Navbar = () => {
             <Link to="/contact" className={linkClass("/contact")}>Contact</Link>
             {isAuthenticated ? (
               <>
+                {user?.role === "admin" && (
+                  <Link to="/admin/dashboard" className={linkClass("/admin/dashboard")}>Admin Panel</Link>
+                )}
                 <Link to={dashPath} className={linkClass(dashPath)}>Dashboard</Link>
                 <button type="button" onClick={handleLogout} className="nav-link">Logout</button>
               </>
@@ -59,6 +62,9 @@ const Navbar = () => {
             ))}
             {isAuthenticated ? (
               <>
+                {user?.role === "admin" && (
+                  <Link to="/admin/dashboard" onClick={close} className={linkClass("/admin/dashboard")}>Admin Panel</Link>
+                )}
                 <Link to={dashPath} onClick={close} className={linkClass(dashPath)}>Dashboard</Link>
                 <button type="button" onClick={handleLogout} className="nav-link text-left">Logout</button>
               </>

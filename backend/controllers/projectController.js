@@ -1,7 +1,9 @@
 const Project = require("../models/Project");
+const Proposal = require("../models/Proposal");
 const User = require("../models/User");
 const ScamReport = require("../models/ScamReport");
 const analyzeProject = require("../config/scamDetector");
+const { notifyFreelancers, notifyFreelancerSelection } = require("../services/notificationService");
 
 exports.getProjects = async (req, res, next) => {
   try {
@@ -43,6 +45,9 @@ exports.createProject = async (req, res, next) => {
     console.log("Project created:", project._id, project.title);
     // Run scam detection asynchronously — does not block project creation
     analyzeProject(project).catch((err) => console.error("Scam detection error:", err));
+    // Notify matching freelancers asynchronously — does not block response
+    const io = req.app.get("io");
+    notifyFreelancers(project, io).catch((err) => console.error("Notification error:", err));
     res.status(201).json({ success: true, project });
   } catch (err) { next(err); }
 };
@@ -80,6 +85,7 @@ exports.getMyProjects = async (req, res, next) => {
   try {
     const projects = await Project.find({ client: req.user._id })
       .populate("proposals")
+      .populate("selectedFreelancer", "name")
       .sort({ createdAt: -1 });
     res.json({ success: true, projects });
   } catch (err) { next(err); }
@@ -100,5 +106,50 @@ exports.getSavedJobs = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id).populate("savedJobs");
     res.json({ success: true, savedJobs: user.savedJobs });
+  } catch (err) { next(err); }
+};
+
+exports.selectFreelancer = async (req, res, next) => {
+  try {
+    const { proposalId } = req.body;
+    if (!proposalId) return res.status(400).json({ message: "proposalId is required" });
+
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ message: "Project not found" });
+    if (project.client.toString() !== req.user._id.toString())
+      return res.status(403).json({ message: "Not authorized" });
+    if (project.status === "assigned")
+      return res.status(400).json({ message: "A freelancer is already assigned" });
+
+    const proposal = await Proposal.findById(proposalId).populate("freelancer", "name");
+    if (!proposal) return res.status(404).json({ message: "Proposal not found" });
+    if (proposal.project.toString() !== project._id.toString())
+      return res.status(400).json({ message: "Proposal does not belong to this project" });
+
+    const freelancer = await User.findById(proposal.freelancer._id);
+    if (!freelancer) return res.status(404).json({ message: "Freelancer not found" });
+
+    // Update project
+    project.status = "assigned";
+    project.selectedFreelancer = freelancer._id;
+    project.selectedAt = new Date();
+    project.selectedBy = req.user._id;
+    await project.save();
+
+    // Update selected proposal
+    proposal.status = "accepted";
+    await proposal.save();
+
+    // Reject all other pending proposals
+    await Proposal.updateMany(
+      { project: project._id, _id: { $ne: proposalId }, status: "pending" },
+      { status: "rejected" }
+    );
+
+    // Notify all applicants
+    const io = req.app.get("io");
+    await notifyFreelancerSelection(project, freelancer._id, io).catch(() => {});
+
+    res.json({ success: true, project });
   } catch (err) { next(err); }
 };

@@ -67,6 +67,112 @@ exports.getMyProposals = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+exports.getFreelancerAnalytics = async (req, res, next) => {
+  try {
+    const uid = req.user._id;
+    const Project = require("../models/Project");
+    const Earning = require("../models/Earning");
+
+    const [proposals, assignedProjects, earnings] = await Promise.all([
+      Proposal.find({ freelancer: uid })
+        .populate("project", "title budget status deadline category createdAt")
+        .sort({ createdAt: -1 })
+        .lean(),
+      Project.find({ selectedFreelancer: uid })
+        .select("title status category deadline budget createdAt")
+        .lean(),
+      Earning.find({ freelancer: uid })
+        .select("amount status createdAt")
+        .sort({ createdAt: 1 })
+        .lean(),
+    ]);
+
+    // Proposal status breakdown
+    const proposalStats = {
+      total: proposals.length,
+      pending: proposals.filter((p) => p.status === "pending").length,
+      accepted: proposals.filter((p) => p.status === "accepted").length,
+      rejected: proposals.filter((p) => p.status === "rejected").length,
+      withdrawn: proposals.filter((p) => p.status === "withdrawn").length,
+    };
+
+    // Project stats
+    const projectStats = {
+      total: assignedProjects.length,
+      active: assignedProjects.filter((p) => p.status === "in_progress").length,
+      completed: assignedProjects.filter((p) => p.status === "completed").length,
+      open: assignedProjects.filter((p) => p.status === "open").length,
+    };
+
+    // Upcoming deadlines (next 30 days)
+    const now = new Date();
+    const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const upcomingDeadlines = assignedProjects
+      .filter((p) => p.deadline && new Date(p.deadline) >= now && new Date(p.deadline) <= in30)
+      .map((p) => ({ title: p.title, deadline: p.deadline, status: p.status }))
+      .sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
+
+    // Earnings summary
+    const totalEarned = earnings.filter((e) => e.status !== "pending").reduce((s, e) => s + e.amount, 0);
+    const pendingEarnings = earnings.filter((e) => e.status === "pending").reduce((s, e) => s + e.amount, 0);
+    const withdrawnEarnings = earnings.filter((e) => e.status === "withdrawn").reduce((s, e) => s + e.amount, 0);
+
+    // Monthly earnings trend (last 6 months)
+    const monthlyEarnings = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      const label = d.toLocaleString("en-IN", { month: "short", year: "2-digit" });
+      const amount = earnings
+        .filter((e) => {
+          const ed = new Date(e.createdAt);
+          return ed.getMonth() === d.getMonth() && ed.getFullYear() === d.getFullYear() && e.status !== "pending";
+        })
+        .reduce((s, e) => s + e.amount, 0);
+      monthlyEarnings.push({ month: label, amount });
+    }
+
+    // Proposal submission trend (last 6 months)
+    const proposalTrend = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      const label = d.toLocaleString("en-IN", { month: "short", year: "2-digit" });
+      const count = proposals.filter((p) => {
+        const pd = new Date(p.createdAt);
+        return pd.getMonth() === d.getMonth() && pd.getFullYear() === d.getFullYear();
+      }).length;
+      proposalTrend.push({ month: label, proposals: count });
+    }
+
+    // Category distribution from proposals
+    const categoryMap = {};
+    proposals.forEach((p) => {
+      const cat = p.project?.category || "Other";
+      categoryMap[cat] = (categoryMap[cat] || 0) + 1;
+    });
+    const categoryDistribution = Object.entries(categoryMap).map(([name, value]) => ({ name, value }));
+
+    // Average bid amount
+    const avgBid = proposals.length
+      ? Math.round(proposals.reduce((s, p) => s + (p.bidAmount || 0), 0) / proposals.length)
+      : 0;
+
+    res.json({
+      success: true,
+      proposalStats,
+      projectStats,
+      upcomingDeadlines,
+      earningsStats: { totalEarned, pendingEarnings, withdrawnEarnings },
+      monthlyEarnings,
+      proposalTrend,
+      categoryDistribution,
+      avgBid,
+      recentProposals: proposals.slice(0, 5),
+    });
+  } catch (err) { next(err); }
+};
+
 exports.uploadVoiceProposal = async (req, res, next) => {
   try {
     const proposal = await Proposal.findById(req.params.id);

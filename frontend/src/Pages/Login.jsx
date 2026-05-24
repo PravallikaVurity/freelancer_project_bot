@@ -9,6 +9,7 @@ const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -16,7 +17,8 @@ const Login = () => {
 
   if (isAuthenticated) return <Navigate to={from} replace />;
 
-  const handleSubmit = async (e) => {
+  // ── Password login ──────────────────────────────────────────────────────────
+  const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
@@ -30,9 +32,11 @@ const Login = () => {
     }
   };
 
+  // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-[calc(100svh-80px)] flex items-center justify-center px-6 py-16">
       <div className="w-full max-w-5xl grid md:grid-cols-2 gap-0 glass rounded-3xl card-glow animate-fade-up">
+        {/* Left panel — unchanged */}
         <div className="hidden md:flex flex-col justify-between p-12 relative overflow-hidden bg-gradient-to-br from-[#161622] to-[#0f0f18]">
           <div className="absolute top-0 right-0 w-64 h-64 bg-[#2ee6a6]/15 rounded-full blur-3xl" />
           <div className="absolute bottom-0 left-0 w-48 h-48 bg-[#9b6dff]/20 rounded-full blur-3xl" />
@@ -46,35 +50,36 @@ const Login = () => {
           <img src="https://illustrations.popsy.co/violet/team-work.svg" alt="" className="relative w-full max-w-xs mx-auto opacity-90" />
         </div>
 
+        {/* Right panel */}
         <div className="p-8 md:p-12 bg-[#0f0f18]/80 rounded-r-3xl">
           <h2 className="font-display text-3xl font-bold mb-1">Sign in</h2>
-          <p className="text-[#8b8ba3] mb-8">Enter your account details</p>
+          <p className="text-[#8b8ba3] mb-6">Enter your account details</p>
 
-          <form className="space-y-5" onSubmit={handleSubmit}>
-            <div>
-              <label className="block text-sm font-medium text-[#e8e8f0] mb-2">Email</label>
-              <div className="input-wrap">
-                <FaEnvelope className="input-icon" />
-                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className="input-field" />
+          <form className="space-y-5" onSubmit={handlePasswordSubmit}>
+              <div>
+                <label className="block text-sm font-medium text-[#e8e8f0] mb-2">Email</label>
+                <div className="input-wrap">
+                  <FaEnvelope className="input-icon" />
+                  <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className="input-field" />
+                </div>
               </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-[#e8e8f0] mb-2">Password</label>
-              <div className="input-wrap">
-                <FaLock className="input-icon" />
-                <input type={showPassword ? "text" : "password"} required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="input-field pr-12" />
-                <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8b8ba3] hover:text-[#e8e8f0] p-1" onClick={() => setShowPassword(!showPassword)}>
-                  {showPassword ? <FaEyeSlash /> : <FaEye />}
-                </button>
+              <div>
+                <label className="block text-sm font-medium text-[#e8e8f0] mb-2">Password</label>
+                <div className="input-wrap">
+                  <FaLock className="input-icon" />
+                  <input type={showPassword ? "text" : "password"} required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="input-field pr-12" />
+                  <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8b8ba3] hover:text-[#e8e8f0] p-1" onClick={() => setShowPassword(!showPassword)}>
+                    {showPassword ? <FaEyeSlash /> : <FaEye />}
+                  </button>
+                </div>
+                <div className="text-right mt-2">
+                  <Link to="/forgot-password" className="text-xs text-[#8b8ba3] hover:text-[#2ee6a6] transition">Forgot password?</Link>
+                </div>
               </div>
-              <div className="text-right mt-2">
-                <Link to="/forgot-password" className="text-xs text-[#8b8ba3] hover:text-[#2ee6a6] transition">Forgot password?</Link>
-              </div>
-            </div>
-            <button type="submit" disabled={loading} className="btn-primary w-full mt-2">
-              {loading ? "Signing in..." : "Sign in"} <FaArrowRight className="text-sm" />
-            </button>
-          </form>
+              <button type="submit" disabled={loading} className="btn-primary w-full mt-2">
+                {loading ? "Signing in..." : "Sign in"} <FaArrowRight className="text-sm" />
+              </button>
+            </form>
 
           <p className="text-center mt-8 text-[#8b8ba3] text-sm">
             New here?{" "}

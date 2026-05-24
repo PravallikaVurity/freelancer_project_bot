@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { FaBriefcase, FaFileAlt, FaWallet, FaStar } from "react-icons/fa";
+import { FaBriefcase, FaFileAlt, FaWallet, FaStar, FaUserCheck } from "react-icons/fa";
+import FreelancerAnalytics from "../../components/FreelancerAnalytics";
 import { Link, useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
 import DashboardPage from "../../components/DashboardPage";
@@ -29,6 +30,8 @@ const FreelancerDashboard = () => {
     } finally { setLoadingProposals(false); }
   };
 
+  const assignedProposals = proposals.filter((p) => p.status === "accepted" && p.project?.status === "assigned");
+
   useEffect(() => { fetchAll(); }, []);
 
   useEffect(() => {
@@ -57,32 +60,58 @@ const FreelancerDashboard = () => {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 glass rounded-2xl p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="font-display text-lg font-bold">Recent Proposals</h2>
-            <Link to="/freelancer/proposals" className="text-sm text-[#2ee6a6] hover:underline">View all</Link>
-          </div>
-
-          {loadingProposals ? (
-            <div className="space-y-3">{Array(3).fill(0).map((_, i) => <CardSkeleton key={i} />)}</div>
-          ) : proposals.length === 0 ? (
-            <p className="text-[#8b8ba3] text-sm py-4">No proposals submitted yet. <Link to="/freelancer/jobs" className="text-[#2ee6a6] hover:underline">Browse jobs</Link> to get started.</p>
-          ) : (
-            <div className="space-y-3">
-              {proposals.map((p) => (
-                <div key={p._id} className="flex items-center justify-between py-3 border-b border-white/5 last:border-0">
-                  <div>
-                    <p className="font-medium text-sm">{p.project?.title || "—"}</p>
-                    <p className="text-xs text-[#8b8ba3]">{new Date(p.createdAt).toLocaleDateString()}</p>
+        <div className="lg:col-span-2 space-y-6">
+          {/* Assigned Projects */}
+          {assignedProposals.length > 0 && (
+            <div className="glass rounded-2xl p-6 border border-[#9b6dff]/20">
+              <h2 className="font-display text-lg font-bold mb-4 flex items-center gap-2">
+                <FaUserCheck className="text-[#9b6dff]" /> Assigned Projects
+              </h2>
+              <div className="space-y-3">
+                {assignedProposals.map((p) => (
+                  <div key={p._id} className="flex items-center justify-between py-3 border-b border-white/5 last:border-0">
+                    <div>
+                      <p className="font-medium text-sm">{p.project?.title}</p>
+                      <p className="text-xs text-[#9b6dff] mt-0.5">You were selected for this project</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[#2ee6a6] text-sm font-semibold">₹{p.bidAmount}</span>
+                      <Badge status="assigned" />
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-[#2ee6a6] text-sm font-semibold">₹{p.bidAmount}</span>
-                    <Badge status={p.status} />
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
+
+          {/* Recent Proposals */}
+          <div className="glass rounded-2xl p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="font-display text-lg font-bold">Recent Proposals</h2>
+              <Link to="/freelancer/proposals" className="text-sm text-[#2ee6a6] hover:underline">View all</Link>
+            </div>
+
+            {loadingProposals ? (
+              <div className="space-y-3">{Array(3).fill(0).map((_, i) => <CardSkeleton key={i} />)}</div>
+            ) : proposals.length === 0 ? (
+              <p className="text-[#8b8ba3] text-sm py-4">No proposals submitted yet. <Link to="/freelancer/jobs" className="text-[#2ee6a6] hover:underline">Browse jobs</Link> to get started.</p>
+            ) : (
+              <div className="space-y-3">
+                {proposals.map((p) => (
+                  <div key={p._id} className="flex items-center justify-between py-3 border-b border-white/5 last:border-0">
+                    <div>
+                      <p className="font-medium text-sm">{p.project?.title || "—"}</p>
+                      <p className="text-xs text-[#8b8ba3]">{new Date(p.createdAt).toLocaleDateString()}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[#2ee6a6] text-sm font-semibold">₹{p.bidAmount}</span>
+                      <Badge status={p.status} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="glass rounded-2xl p-6">
@@ -100,6 +129,8 @@ const FreelancerDashboard = () => {
           </div>
         </div>
       </div>
+
+      <FreelancerAnalytics />
     </DashboardPage>
   );
 };

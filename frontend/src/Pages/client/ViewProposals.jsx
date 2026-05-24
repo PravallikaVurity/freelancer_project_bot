@@ -1,12 +1,14 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { FaArrowLeft, FaCheck, FaTimes, FaMicrophone, FaPlay, FaPause, FaDownload } from "react-icons/fa";
+import { FaArrowLeft, FaCheck, FaTimes, FaMicrophone, FaPlay, FaPause, FaDownload, FaUserCheck, FaStar } from "react-icons/fa";
 import DashboardPage from "../../components/DashboardPage";
 import StarRating from "../../components/StarRating";
 import Badge from "../../components/Badge";
 import LoadingSpinner from "../../components/LoadingSpinner";
 import { StatusDisplay } from "../../components/StatusBadge";
+import ReviewsModal from "../../components/ReviewsModal";
 import { getProposals } from "../../services/projectApi";
+import { selectFreelancer } from "../../services/projectApi";
 import { updateProposalStatus } from "../../services/bidApi";
 import toast from "react-hot-toast";
 
@@ -36,9 +38,18 @@ const ViewProposals = () => {
   const navigate = useNavigate();
   const [proposals, setProposals] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [projectAssigned, setProjectAssigned] = useState(false);
+  const [selecting, setSelecting] = useState(null);
+  const [reviewTarget, setReviewTarget] = useState(null); // { id, name, rating, reviewCount, completedProjects, skills }
 
   useEffect(() => {
-    getProposals(id).then(({ data }) => setProposals(data.proposals)).catch(() => toast.error("Failed to load proposals")).finally(() => setLoading(false));
+    getProposals(id)
+      .then(({ data }) => {
+        setProposals(data.proposals);
+        setProjectAssigned(data.proposals.some((p) => p.status === "accepted"));
+      })
+      .catch(() => toast.error("Failed to load proposals"))
+      .finally(() => setLoading(false));
   }, [id]);
 
   const handleStatus = async (proposalId, status) => {
@@ -49,10 +60,39 @@ const ViewProposals = () => {
     } catch { toast.error("Failed to update proposal"); }
   };
 
+  const handleSelect = async (proposalId) => {
+    if (!confirm("Select this freelancer for the project? This will assign the project and notify all applicants.")) return;
+    setSelecting(proposalId);
+    try {
+      await selectFreelancer(id, proposalId);
+      setProposals((prev) => prev.map((p) =>
+        p._id === proposalId
+          ? { ...p, status: "accepted" }
+          : p.status === "pending" ? { ...p, status: "rejected" } : p
+      ));
+      setProjectAssigned(true);
+      toast.success("Freelancer selected! Project is now Assigned.");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to select freelancer");
+    } finally { setSelecting(null); }
+  };
+
   if (loading) return <LoadingSpinner size="lg" className="min-h-[60vh]" />;
 
   return (
     <DashboardPage title="Proposals" description={`${proposals.length} proposals received`}>
+      {reviewTarget && (
+        <ReviewsModal
+          userId={reviewTarget.id}
+          userName={reviewTarget.name}
+          userRole="freelancer"
+          userRating={reviewTarget.rating}
+          userReviewCount={reviewTarget.reviewCount}
+          userCompletedProjects={reviewTarget.completedProjects}
+          userSkills={reviewTarget.skills}
+          onClose={() => setReviewTarget(null)}
+        />
+      )}
       <button type="button" onClick={() => navigate(-1)} className="flex items-center gap-2 text-[#8b8ba3] hover:text-[#e8e8f0] text-sm mb-6 transition">
         <FaArrowLeft /> Back to projects
       </button>
@@ -71,6 +111,20 @@ const ViewProposals = () => {
                   <div>
                     <p className="font-display font-bold">{p.freelancer?.name}</p>
                     <StarRating rating={p.freelancer?.rating || 0} />
+                    <button
+                      type="button"
+                      onClick={() => setReviewTarget({
+                        id: p.freelancer?._id,
+                        name: p.freelancer?.name,
+                        rating: p.freelancer?.rating,
+                        reviewCount: p.freelancer?.reviewCount,
+                        completedProjects: p.freelancer?.completedProjects,
+                        skills: p.freelancer?.skills,
+                      })}
+                      className="mt-1 flex items-center gap-1.5 text-xs text-[#2ee6a6] hover:underline transition"
+                    >
+                      <FaStar className="text-yellow-400" /> View Freelancer Reviews
+                    </button>
                     <StatusDisplay status={p.freelancer?.currentStatus} className="mt-0.5" />
                   </div>
                 </div>
@@ -96,10 +150,18 @@ const ViewProposals = () => {
 
               {p.voiceFile?.url && <VoicePlayer url={p.voiceFile.url} />}
 
-              {p.status === "pending" && (
+              {!projectAssigned && p.status === "pending" && (
                 <div className="flex gap-3">
-                  <button type="button" onClick={() => handleStatus(p._id, "accepted")} className="btn-primary text-sm py-2 px-4 flex items-center gap-2"><FaCheck /> Accept</button>
+                  <button type="button" disabled={selecting === p._id} onClick={() => handleSelect(p._id)} className="btn-primary text-sm py-2 px-4 flex items-center gap-2 disabled:opacity-50">
+                    <FaUserCheck /> {selecting === p._id ? "Selecting..." : "Select Freelancer"}
+                  </button>
+                  <button type="button" onClick={() => handleStatus(p._id, "accepted")} className="btn-ghost text-sm py-2 px-4 flex items-center gap-2"><FaCheck /> Accept</button>
                   <button type="button" onClick={() => handleStatus(p._id, "rejected")} className="btn-ghost text-sm py-2 px-4 flex items-center gap-2 hover:border-[#ff6b6b]/50 hover:text-[#ff6b6b]"><FaTimes /> Reject</button>
+                </div>
+              )}
+              {p.status === "accepted" && (
+                <div className="flex items-center gap-2 text-[#2ee6a6] text-sm font-medium">
+                  <FaUserCheck /> Selected Freelancer
                 </div>
               )}
             </div>

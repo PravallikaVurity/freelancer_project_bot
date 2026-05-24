@@ -58,9 +58,9 @@ connectDB().then(async () => {
         });
       }
 
-      let admin = await User.findOne({ email: "admin@fb.com" });
+      let admin = await User.findOne({ email: "pravallikavurity@gmail.com" });
       if (!admin) {
-        admin = await User.create({ name: "Admin User", email: "admin@fb.com", password: "Admin@123", role: "admin" });
+        admin = await User.create({ name: "Admin", email: "pravallikavurity@gmail.com", password: "29072006pravalli", role: "admin" });
       }
 
       await Project.create([
@@ -149,7 +149,7 @@ connectDB().then(async () => {
       console.log("   Client:     client@fb.com / Client@123");
       console.log("   Client 2:   client2@fb.com / Client@123");
       console.log("   Freelancer: freelancer@fb.com / Free@123");
-      console.log("   Admin:      admin@fb.com / Admin@123");
+      console.log("   Admin:      pravallikavurity@gmail.com / 29072006pravalli");
     }
   } catch (seedErr) {
     console.error("Auto-seed error:", seedErr.message);
@@ -177,10 +177,13 @@ app.use("/api/reviews", require("./routes/reviews"));
 app.use("/api/admin", require("./routes/admin"));
 app.use("/api/earnings", require("./routes/earnings"));
 app.use("/api/battle", require("./routes/battle"));
+app.use("/api/notifications", require("./routes/notifications"));
+app.use("/api/ai", require("./routes/ai"));
+app.use("/api/analytics", require("./routes/analytics"));
 
 app.get("/api/health", (req, res) => res.json({ status: "ok" }));
 
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5002;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
