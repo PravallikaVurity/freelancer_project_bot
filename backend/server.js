@@ -7,6 +7,37 @@ const morgan = require("morgan");
 const connectDB = require("./config/db");
 const errorHandler = require("./middleware/error");
 
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: { origin: process.env.CLIENT_URL, methods: ["GET", "POST"] },
+});
+
+require("./socket")(io);
+app.set("io", io);
+
+app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }));
+app.use(express.json());
+app.use(morgan("dev"));
+
+app.use("/api/auth", require("./routes/auth"));
+app.use("/api/projects", require("./routes/projects"));
+app.use("/api/proposals", require("./routes/proposals"));
+app.use("/api/messages", require("./routes/messages"));
+app.use("/api/reviews", require("./routes/reviews"));
+app.use("/api/admin", require("./routes/admin"));
+app.use("/api/earnings", require("./routes/earnings"));
+app.use("/api/battle", require("./routes/battle"));
+app.use("/api/notifications", require("./routes/notifications"));
+app.use("/api/ai", require("./routes/ai"));
+app.use("/api/analytics", require("./routes/analytics"));
+
+app.get("/api/health", (req, res) => res.json({ status: "ok" }));
+
+app.use(errorHandler);
+
+const PORT = process.env.PORT || 5002;
+
 connectDB().then(async () => {
   // Auto-seed demo data if database has no projects
   try {
@@ -28,7 +59,7 @@ connectDB().then(async () => {
         { name: "WordPress", category: "CMS" }, { name: "SEO", category: "Marketing" },
         { name: "Docker", category: "DevOps" }, { name: "Git", category: "DevOps" },
       ];
-      await Skill.insertMany(skills).catch(() => {});
+      await Skill.insertMany(skills).catch(() => { });
 
       let client = await User.findOne({ email: "client@fb.com" });
       if (!client) {
@@ -154,36 +185,11 @@ connectDB().then(async () => {
   } catch (seedErr) {
     console.error("Auto-seed error:", seedErr.message);
   }
+
+  server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 });
 
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: process.env.CLIENT_URL, methods: ["GET", "POST"] },
+process.on("unhandledRejection", (err) => {
+  console.error("Unhandled rejection:", err.message);
+  server.close(() => process.exit(1));
 });
-
-require("./socket")(io);
-app.set("io", io);
-
-app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }));
-app.use(express.json());
-app.use(morgan("dev"));
-
-app.use("/api/auth", require("./routes/auth"));
-app.use("/api/projects", require("./routes/projects"));
-app.use("/api/proposals", require("./routes/proposals"));
-app.use("/api/messages", require("./routes/messages"));
-app.use("/api/reviews", require("./routes/reviews"));
-app.use("/api/admin", require("./routes/admin"));
-app.use("/api/earnings", require("./routes/earnings"));
-app.use("/api/battle", require("./routes/battle"));
-app.use("/api/notifications", require("./routes/notifications"));
-app.use("/api/ai", require("./routes/ai"));
-app.use("/api/analytics", require("./routes/analytics"));
-
-app.get("/api/health", (req, res) => res.json({ status: "ok" }));
-
-app.use(errorHandler);
-
-const PORT = process.env.PORT || 5002;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));

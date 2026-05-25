@@ -35,7 +35,7 @@ exports.register = async (req, res, next) => {
 exports.login = async (req, res, next) => {
   try {
     const email = req.body.email?.trim().toLowerCase();
-    const password = req.body.password?.trim();
+    const password = req.body.password;
 
     if (!email) return res.status(400).json({ message: "Email required" });
     if (!password) return res.status(400).json({ message: "Password required" });
@@ -114,12 +114,13 @@ exports.getDashboardStats = async (req, res, next) => {
     const Project = require("../models/Project");
     const Earning = require("../models/Earning");
     const Review = require("../models/Review");
+    const mongoose = require("mongoose");
 
     const [activeProposals, completedJobs, earningsData, reviewsData] = await Promise.all([
       Proposal.countDocuments({ freelancer: userId, status: { $in: ["pending", "accepted"] } }),
       Project.countDocuments({ selectedFreelancer: userId, status: "completed" }),
       Earning.aggregate([
-        { $match: { freelancer: userId, status: "released" } },
+        { $match: { freelancer: new mongoose.Types.ObjectId(userId), status: "released" } },
         { $group: { _id: null, total: { $sum: "$amount" } } },
       ]),
       Review.find({ reviewee: userId }).select("rating"),

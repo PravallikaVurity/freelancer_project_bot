@@ -49,10 +49,11 @@ const analyzeProject = async (project) => {
 
   // 6. Duplicate project title by same client (last 30 days)
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const escapedTitle = project.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const duplicate = await Project.findOne({
     _id: { $ne: project._id },
     client: project.client,
-    title: { $regex: new RegExp(`^${project.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") },
+    title: { $regex: new RegExp(`^${escapedTitle}$`, "i") },
     createdAt: { $gte: thirtyDaysAgo },
   });
   if (duplicate)

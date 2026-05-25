@@ -14,7 +14,7 @@ const signToken = (id) =>
 
 /** Generate a 6-digit OTP */
 function generateOtp() {
-  return String(Math.floor(100000 + crypto.randomInt(900000)));
+  return String(crypto.randomInt(100000, 1000000));
 }
 
 /** POST /api/auth/send-otp */

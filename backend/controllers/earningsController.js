@@ -4,6 +4,7 @@ const User = require("../models/User");
 
 exports.getMyEarnings = async (req, res, next) => {
   try {
+    const mongoose = require("mongoose");
     const earnings = await Earning.find({ freelancer: req.user._id })
       .populate("project", "title")
       .populate("client", "name")
@@ -13,17 +14,17 @@ exports.getMyEarnings = async (req, res, next) => {
       .filter((e) => e.status === "released")
       .reduce((sum, e) => sum + e.amount, 0);
 
+    const now = new Date();
     const thisMonth = earnings
       .filter((e) => {
         const d = new Date(e.createdAt);
-        const now = new Date();
         return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
       })
       .reduce((sum, e) => sum + e.amount, 0);
 
-    const total = await User.findById(req.user._id).select("totalEarnings");
+    const userDoc = await User.findById(req.user._id).select("totalEarnings");
 
-    res.json({ success: true, earnings, available, thisMonth, total: total?.totalEarnings || 0 });
+    res.json({ success: true, earnings, available, thisMonth, total: userDoc?.totalEarnings || 0 });
   } catch (err) { next(err); }
 };
 
@@ -170,11 +171,9 @@ exports.completeWithdrawal = async (req, res, next) => {
     const releasedEarnings = await Earning.find({ freelancer: req.user._id, status: "released" }).sort({ createdAt: 1 });
     for (const earning of releasedEarnings) {
       if (remaining <= 0) break;
-      if (earning.amount <= remaining) {
-        earning.status = "withdrawn";
-        remaining -= earning.amount;
-        await earning.save();
-      }
+      earning.status = "withdrawn";
+      remaining -= earning.amount;
+      await earning.save();
     }
 
     res.json({ success: true, withdrawal });
